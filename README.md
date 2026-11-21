@@ -1,4 +1,4 @@
-# Quake III Arena R — `reforged`
+# Vulkan Quake III NG #
 
 A Linux-focused continuation of **vkq3ng**, the Vulkan/ray-tracing fork of Quake III Arena.
 
