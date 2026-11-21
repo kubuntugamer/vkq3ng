@@ -732,22 +732,28 @@ typedef struct zonedebug_s {
 	int allocSize;
 } zonedebug_t;
 
+typedef struct memzone_s memzone_t;
+
 typedef struct memblock_s {
 	int		size;           // including the header and possibly tiny fragments
 	int     tag;            // a tag of 0 is a free block
 	struct memblock_s       *next, *prev;
 	int     id;        		// should be ZONEID
+	memzone_t *zone;		// owning zone (main zone can grow into segments)
 #ifdef ZONE_DEBUG
 	zonedebug_t d;
 #endif
 } memblock_t;
 
-typedef struct {
+struct memzone_s {
 	int		size;			// total bytes malloced, including header
 	int		used;			// total bytes used
 	memblock_t	blocklist;	// start / end cap for linked list
 	memblock_t	*rover;
-} memzone_t;
+	struct memzone_s *next;	// next main-zone segment
+};
+
+static int s_zoneTotal;
 
 // main zone for all "dynamic" memory allocation
 memzone_t	*mainzone;
@@ -772,6 +778,7 @@ void Z_ClearZone(memzone_t *zone, int size) {
 	zone->blocklist.tag = 1;	// in use block
 	zone->blocklist.id = 0;
 	zone->blocklist.size = 0;
+	zone->blocklist.zone = zone;
 	zone->rover = block;
 	zone->size = size;
 	zone->used = 0;
@@ -779,6 +786,7 @@ void Z_ClearZone(memzone_t *zone, int size) {
 	block->prev = block->next = &zone->blocklist;
 	block->tag = 0;			// free block
 	block->id = ZONEID;
+	block->zone = zone;
 	block->size = size - sizeof(memzone_t);
 }
 
@@ -797,7 +805,76 @@ Z_AvailableMemory
 ========================
 */
 int Z_AvailableMemory(void) {
-	return Z_AvailableZoneMemory(mainzone);
+	int total = 0;
+	memzone_t *zone;
+
+	for (zone = mainzone; zone; zone = zone->next) {
+		total += Z_AvailableZoneMemory(zone);
+	}
+	return total;
+}
+
+/*
+========================
+Z_FindFreeBlock
+========================
+*/
+static memblock_t *Z_FindFreeBlock(memzone_t *zone, int size) {
+	memblock_t *base, *rover, *start;
+
+	if (!zone)
+		return NULL;
+
+	base = rover = zone->rover;
+	start = base->prev;
+
+	do {
+		if (rover == start)
+			return NULL;
+		if (rover->tag) {
+			base = rover = rover->next;
+		}
+		else {
+			rover = rover->next;
+		}
+	} while (base->tag || base->size < size);
+
+	return base;
+}
+
+/*
+========================
+Z_GrowMainZone
+
+Adds a new segment instead of moving existing blocks, so pointers already
+returned to the game stay valid.  A map with very large HD textures can need
+well over the original 16/24 MB zone.
+========================
+*/
+#define ZONE_GROW_CHUNK	(64 * 1024 * 1024)
+#define ZONE_MAX_TOTAL	(1536 * 1024 * 1024)
+
+static memzone_t *Z_GrowMainZone(int size) {
+	memzone_t *zone, *tail;
+	int newSize = ZONE_GROW_CHUNK;
+
+	if (size + (int)sizeof(memzone_t) + 64 > newSize)
+		newSize = size + (int)sizeof(memzone_t) + 64;
+	if (s_zoneTotal > ZONE_MAX_TOTAL - newSize)
+		return NULL;
+
+	zone = (memzone_t *)calloc(newSize, 1);
+	if (!zone)
+		return NULL;
+
+	Z_ClearZone(zone, newSize);
+	zone->next = NULL;
+
+	for (tail = mainzone; tail->next; tail = tail->next)
+		;
+	tail->next = zone;
+	s_zoneTotal += newSize;
+	return zone;
 }
 
 /*
@@ -830,11 +907,9 @@ void Z_Free(void *ptr) {
 		Com_Error(ERR_FATAL, "Z_Free: memory block wrote past end");
 	}
 
-	if (block->tag == TAG_SMALL) {
-		zone = smallzone;
-	}
-	else {
-		zone = mainzone;
+	zone = block->zone;
+	if (!zone) {
+		zone = (block->tag == TAG_SMALL) ? smallzone : mainzone;
 	}
 
 	zone->used -= block->size;
@@ -876,28 +951,30 @@ void Z_Free(void *ptr) {
 Z_FreeTags
 ================
 */
-void Z_FreeTags(int tag) {
-	int			count;
-	memzone_t	*zone;
-
-	if (tag == TAG_SMALL) {
-		zone = smallzone;
-	}
-	else {
-		zone = mainzone;
-	}
-	count = 0;
+static void Z_FreeTagsInZone(memzone_t *zone, int tag) {
 	// use the rover as our pointer, because
 	// Z_Free automatically adjusts it
 	zone->rover = zone->blocklist.next;
 	do {
 		if (zone->rover->tag == tag) {
-			count++;
 			Z_Free((void *)(zone->rover + 1));
 			continue;
 		}
 		zone->rover = zone->rover->next;
 	} while (zone->rover != &zone->blocklist);
+}
+
+void Z_FreeTags(int tag) {
+	memzone_t *zone;
+
+	if (tag == TAG_SMALL) {
+		Z_FreeTagsInZone(smallzone, tag);
+		return;
+	}
+
+	for (zone = mainzone; zone; zone = zone->next) {
+		Z_FreeTagsInZone(zone, tag);
+	}
 }
 
 
@@ -912,18 +989,11 @@ void *Z_TagMallocDebug(int size, int tag, char *label, char *file, int line) {
 void *Z_TagMalloc(int size, int tag) {
 #endif
 	int		extra, allocSize;
-	memblock_t	*start, *rover, *newBlock, *base;
+	memblock_t	*newBlock, *base;
 	memzone_t *zone;
 
 	if (!tag) {
 		Com_Error(ERR_FATAL, "Z_TagMalloc: tried to use a 0 tag");
-	}
-
-	if (tag == TAG_SMALL) {
-		zone = smallzone;
-	}
-	else {
-		zone = mainzone;
 	}
 
 	allocSize = size;
@@ -935,26 +1005,32 @@ void *Z_TagMalloc(int size, int tag) {
 	size += 4;					// space for memory trash tester
 	size = (size + 3) & ~3;		// align to 32 bit boundary
 
-	base = rover = zone->rover;
-	start = base->prev;
+	if (tag == TAG_SMALL) {
+		zone = smallzone;
+		base = Z_FindFreeBlock(zone, size);
+	}
+	else {
+		base = NULL;
+		for (zone = mainzone; zone; zone = zone->next) {
+			base = Z_FindFreeBlock(zone, size);
+			if (base)
+				break;
+		}
+		if (!base) {
+			zone = Z_GrowMainZone(size);
+			if (zone)
+				base = Z_FindFreeBlock(zone, size);
+		}
+	}
 
-	do {
-		if (rover == start) {
+	if (!base) {
 #ifdef ZONE_DEBUG
-			Z_LogHeap();
+		Z_LogHeap();
 #endif
-			// scaned all the way around the list
-			Com_Error(ERR_FATAL, "Z_Malloc: failed on allocation of %i bytes from the %s zone",
-				size, zone == smallzone ? "small" : "main");
-			return NULL;
-		}
-		if (rover->tag) {
-			base = rover = rover->next;
-		}
-		else {
-			rover = rover->next;
-		}
-	} while (base->tag || base->size < size);
+		Com_Error(ERR_FATAL, "Z_Malloc: failed on allocation of %i bytes from the %s zone",
+			size, tag == TAG_SMALL ? "small" : "main");
+		return NULL;
+	}
 
 	//
 	// found a block big enough
@@ -967,6 +1043,7 @@ void *Z_TagMalloc(int size, int tag) {
 		newBlock->tag = 0;			// free block
 		newBlock->prev = base;
 		newBlock->id = ZONEID;
+		newBlock->zone = zone;
 		newBlock->next = base->next;
 		newBlock->next->prev = newBlock;
 		base->next = newBlock;
@@ -1034,18 +1111,21 @@ Z_CheckHeap
 */
 void Z_CheckHeap(void) {
 	memblock_t	*block;
+	memzone_t	*zone;
 
-	for (block = mainzone->blocklist.next; ; block = block->next) {
-		if (block->next == &mainzone->blocklist) {
-			break;			// all blocks have been hit
-		}
-		if ((byte *)block + block->size != (byte *)block->next)
-			Com_Error(ERR_FATAL, "Z_CheckHeap: block size does not touch the next block\n");
-		if (block->next->prev != block) {
-			Com_Error(ERR_FATAL, "Z_CheckHeap: next block doesn't have proper back link\n");
-		}
-		if (!block->tag && !block->next->tag) {
-			Com_Error(ERR_FATAL, "Z_CheckHeap: two consecutive free blocks\n");
+	for (zone = mainzone; zone; zone = zone->next) {
+		for (block = zone->blocklist.next; ; block = block->next) {
+			if (block->next == &zone->blocklist) {
+				break;			// all blocks have been hit
+			}
+			if ((byte *)block + block->size != (byte *)block->next)
+				Com_Error(ERR_FATAL, "Z_CheckHeap: block size does not touch the next block\n");
+			if (block->next->prev != block) {
+				Com_Error(ERR_FATAL, "Z_CheckHeap: next block doesn't have proper back link\n");
+			}
+			if (!block->tag && !block->next->tag) {
+				Com_Error(ERR_FATAL, "Z_CheckHeap: two consecutive free blocks\n");
+			}
 		}
 	}
 }
@@ -1226,7 +1306,6 @@ static	hunkUsed_t	*hunk_permanent, *hunk_temp;
 static	byte	*s_hunkData = NULL;
 static	int		s_hunkTotal;
 
-static	int		s_zoneTotal;
 static	int		s_smallZoneTotal;
 
 
@@ -1237,6 +1316,7 @@ Com_Meminfo_f
 */
 void Com_Meminfo_f(void) {
 	memblock_t	*block;
+	memzone_t	*zone;
 	int			zoneBytes, zoneBlocks;
 	int			smallZoneBytes, smallZoneBlocks;
 	int			botlibBytes, rendererBytes;
@@ -1246,33 +1326,35 @@ void Com_Meminfo_f(void) {
 	botlibBytes = 0;
 	rendererBytes = 0;
 	zoneBlocks = 0;
-	for (block = mainzone->blocklist.next; ; block = block->next) {
-		if (Cmd_Argc() != 1) {
-			Com_Printf("block:%p    size:%7i    tag:%3i\n",
-				block, block->size, block->tag);
-		}
-		if (block->tag) {
-			zoneBytes += block->size;
-			zoneBlocks++;
-			if (block->tag == TAG_BOTLIB) {
-				botlibBytes += block->size;
+	for (zone = mainzone; zone; zone = zone->next) {
+		for (block = zone->blocklist.next; ; block = block->next) {
+			if (Cmd_Argc() != 1) {
+				Com_Printf("block:%p    size:%7i    tag:%3i\n",
+					block, block->size, block->tag);
 			}
-			else if (block->tag == TAG_RENDERER) {
-				rendererBytes += block->size;
+			if (block->tag) {
+				zoneBytes += block->size;
+				zoneBlocks++;
+				if (block->tag == TAG_BOTLIB) {
+					botlibBytes += block->size;
+				}
+				else if (block->tag == TAG_RENDERER) {
+					rendererBytes += block->size;
+				}
 			}
-		}
 
-		if (block->next == &mainzone->blocklist) {
-			break;			// all blocks have been hit	
-		}
-		if ((byte *)block + block->size != (byte *)block->next) {
-			Com_Printf("ERROR: block size does not touch the next block\n");
-		}
-		if (block->next->prev != block) {
-			Com_Printf("ERROR: next block doesn't have proper back link\n");
-		}
-		if (!block->tag && !block->next->tag) {
-			Com_Printf("ERROR: two consecutive free blocks\n");
+			if (block->next == &zone->blocklist) {
+				break;			// all blocks have been hit
+			}
+			if ((byte *)block + block->size != (byte *)block->next) {
+				Com_Printf("ERROR: block size does not touch the next block\n");
+			}
+			if (block->next->prev != block) {
+				Com_Printf("ERROR: next block doesn't have proper back link\n");
+			}
+			if (!block->tag && !block->next->tag) {
+				Com_Printf("ERROR: two consecutive free blocks\n");
+			}
 		}
 	}
 
@@ -1335,6 +1417,7 @@ void Com_TouchMemory(void) {
 	int		i, j;
 	int		sum;
 	memblock_t	*block;
+	memzone_t	*zone;
 
 	Z_CheckHeap();
 
@@ -1353,15 +1436,17 @@ void Com_TouchMemory(void) {
 		sum += ((int *)s_hunkData)[i];
 	}
 
-	for (block = mainzone->blocklist.next; ; block = block->next) {
-		if (block->tag) {
-			j = block->size >> 2;
-			for (i = 0; i < j; i += 64) {				// only need to touch each page
-				sum += ((int *)block)[i];
+	for (zone = mainzone; zone; zone = zone->next) {
+		for (block = zone->blocklist.next; ; block = block->next) {
+			if (block->tag) {
+				j = block->size >> 2;
+				for (i = 0; i < j; i += 64) {				// only need to touch each page
+					sum += ((int *)block)[i];
+				}
 			}
-		}
-		if (block->next == &mainzone->blocklist) {
-			break;			// all blocks have been hit	
+			if (block->next == &zone->blocklist) {
+				break;			// all blocks have been hit
+			}
 		}
 	}
 
@@ -1407,6 +1492,7 @@ void Com_InitZoneMemory(void) {
 		Com_Error(ERR_FATAL, "Zone data failed to allocate %i megs", s_zoneTotal / (1024 * 1024));
 	}
 	Z_ClearZone(mainzone, s_zoneTotal);
+	mainzone->next = NULL;
 
 }
 
