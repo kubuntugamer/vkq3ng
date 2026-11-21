@@ -1,5 +1,5 @@
 #version 460
-#extension GL_NV_ray_tracing : require
+#extension GL_EXT_ray_tracing : require
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_nonuniform_qualifier : enable
 #pragma optionNV (unroll all)
@@ -21,6 +21,8 @@ layout(binding = BINDING_OFFSET_GLOBAL_UBO_PREV, set = 0) uniform global_ubo_pre
 {
 	GlobalUbo uboPrev;
 };
+layout(location = PAYLOAD_REFLECT) rayPayloadEXT RayPayloadReflect rrp;
+
 #include "traceRay.glsl"
 #include "lights.glsl"
 
@@ -150,15 +152,15 @@ float ray_distance_to_plane(vec3 plane_pt, vec3 plane_normal, vec3 ray_origin, v
 
 // 	vec4 temp;
 // 	uvec4 utemp;
-// 	utemp = imageLoad(objectGBuffer, ivec2(gl_LaunchIDNV.xy));
+// 	utemp = imageLoad(objectGBuffer, ivec2(gl_LaunchIDEXT.xy));
 // 	material = utemp.x;
 // 	cluster = utemp.y;
 // 	if (!isGlass(material) && !isMirror(material) && !isWater(material)) return;
 
-// 	primary_albedo = imageLoad(albedoGBuffer, ivec2(gl_LaunchIDNV.xy));
-// 	normal = imageLoad(normalGBuffer, ivec2(gl_LaunchIDNV.xy)).xyz;
-// 	pos = imageLoad(posGBuffer, ivec2(gl_LaunchIDNV.xy)).xyz;
-// 	originalDir = imageLoad(viewGBuffer, ivec2(gl_LaunchIDNV.xy)).xyz;
+// 	primary_albedo = imageLoad(albedoGBuffer, ivec2(gl_LaunchIDEXT.xy));
+// 	normal = imageLoad(normalGBuffer, ivec2(gl_LaunchIDEXT.xy)).xyz;
+// 	pos = imageLoad(posGBuffer, ivec2(gl_LaunchIDEXT.xy)).xyz;
+// 	originalDir = imageLoad(viewGBuffer, ivec2(gl_LaunchIDEXT.xy)).xyz;
 
 // 	vec3 P = pos;
 // 	vec3 N = normalize(normal);
@@ -284,12 +286,10 @@ float ray_distance_to_plane(vec3 plane_pt, vec3 plane_normal, vec3 ray_origin, v
 // 		color = vec4(mirrorColor.xyz * reflection.xyz,1);
 
 // 	} 
-	//imageStore(normalGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(normal.xyz,1));
-	//imageStore(posGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(pos.xyz, 0));
-	//imageStore(objectGBuffer, ivec2(gl_LaunchIDNV.xy), uvec4(material, cluster, 0,0));
-	//imageStore(reflectionGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(color));
-
-layout(location = PAYLOAD_REFLECT) rayPayloadNV RayPayloadReflect rrp;
+	//imageStore(normalGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(normal.xyz,1));
+	//imageStore(posGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(pos.xyz, 0));
+	//imageStore(objectGBuffer, ivec2(gl_LaunchIDEXT.xy), uvec4(material, cluster, 0,0));
+	//imageStore(reflectionGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(color));
 
 #define PRIMARY_RAY_T_MAX (10000.0)
 Ray
@@ -322,16 +322,16 @@ void main()
 
 	vec4 temp;
 	uvec4 utemp;
-	//utemp = imageLoad(objectGBuffer, ivec2(gl_LaunchIDNV.xy));
-	material = uint(imageLoad(viewGBuffer, ivec2(gl_LaunchIDNV.xy)).w);
+	//utemp = imageLoad(objectGBuffer, ivec2(gl_LaunchIDEXT.xy));
+	material = uint(imageLoad(viewGBuffer, ivec2(gl_LaunchIDEXT.xy)).w);
 	if (!isGlass(material) && !isMirror(material) && !isWater(material) && !isSeeThrough(material) && !isSeeThroughNoAlpha(material)) return;
 	
-	normal = imageLoad(normalGBuffer, ivec2(gl_LaunchIDNV.xy)).xyz;
-	pos = imageLoad(posGBuffer, ivec2(gl_LaunchIDNV.xy)).xyz;
-	cluster = uint(imageLoad(posGBuffer, ivec2(gl_LaunchIDNV.xy)).w);
+	normal = imageLoad(normalGBuffer, ivec2(gl_LaunchIDEXT.xy)).xyz;
+	pos = imageLoad(posGBuffer, ivec2(gl_LaunchIDEXT.xy)).xyz;
+	cluster = uint(imageLoad(posGBuffer, ivec2(gl_LaunchIDEXT.xy)).w);
 
-	primary_albedo = imageLoad(albedoGBuffer, ivec2(gl_LaunchIDNV.xy));
-	originalDir = imageLoad(viewGBuffer, ivec2(gl_LaunchIDNV.xy)).xyz;
+	primary_albedo = imageLoad(albedoGBuffer, ivec2(gl_LaunchIDEXT.xy));
+	originalDir = imageLoad(viewGBuffer, ivec2(gl_LaunchIDEXT.xy)).xyz;
 
 	vec3 P = pos;
 	vec3 N = normalize(normal);
@@ -339,8 +339,8 @@ void main()
 	vec3 viewDir = normalize(P - ubo.camPos.xyz);
 	vec4 color = vec4(0);
 
-	const vec2 pixelCenter = vec2(gl_LaunchIDNV.xy) + vec2(0.5);
-	const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeNV.xy);
+	const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
+	const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
 	const vec2 screenCoordClipSpace  = inUV * 2.0 - 1.0;
 	rrp.sccs = screenCoordClipSpace;
 	rrp.transparent = vec4(0);
@@ -385,17 +385,17 @@ void main()
 		vec4 motion = vec4((ndcPrev.xy - ndc.xy), -(ndcPrev.z - ndc.z), fwidth_depth);
 
 		if(rrp.hit_distance > rrp.max_transparent_distance){
-			vec4 trans = imageLoad(transparentGBuffer, ivec2(gl_LaunchIDNV.xy));
+			vec4 trans = imageLoad(transparentGBuffer, ivec2(gl_LaunchIDEXT.xy));
 			trans.xyz += rrp.transparent.xyz;
-			imageStore(transparentGBuffer, ivec2(gl_LaunchIDNV.xy), trans);
+			imageStore(transparentGBuffer, ivec2(gl_LaunchIDEXT.xy), trans);
 		}
 
-		imageStore(albedoGBuffer, ivec2(gl_LaunchIDNV.xy), color);
-		imageStore(normalGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(rrp.normal.xyz, -ndc.z));//rrp.depth));
-		imageStore(posGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(rrp.pos.xyz, rrp.cluster));
-		imageStore(objectGBuffer, ivec2(gl_LaunchIDNV.xy), rrp.object);
-		imageStore(viewGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(originalDir, rrp.material));
-		imageStore(motionGBuffer, ivec2(gl_LaunchIDNV.xy), motion);
+		imageStore(albedoGBuffer, ivec2(gl_LaunchIDEXT.xy), color);
+		imageStore(normalGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(rrp.normal.xyz, -ndc.z));//rrp.depth));
+		imageStore(posGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(rrp.pos.xyz, rrp.cluster));
+		imageStore(objectGBuffer, ivec2(gl_LaunchIDEXT.xy), rrp.object);
+		imageStore(viewGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(originalDir, rrp.material));
+		imageStore(motionGBuffer, ivec2(gl_LaunchIDEXT.xy), motion);
 
 	}
 	if (isGlass(material)){
@@ -433,10 +433,10 @@ void main()
 	
 
 		vec4 color = primary_albedo * primary_albedo.w + albedo * (1-primary_albedo.w);
-		imageStore(reflectionGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(color.xyz,1));
-		imageStore(albedoGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(color.xyz,1));
-		imageStore(normalGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(rrp.normal.xyz, rrp.material));
-		imageStore(posGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(rrp.pos.xyz, rrp.cluster));
+		imageStore(reflectionGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(color.xyz,1));
+		imageStore(albedoGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(color.xyz,1));
+		imageStore(normalGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(rrp.normal.xyz, rrp.material));
+		imageStore(posGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(rrp.pos.xyz, rrp.cluster));
 		
 		
 	}
@@ -469,10 +469,10 @@ void main()
 		//primary_albedo.w = 0.1;
 		//vec4 color = primary_albedo * primary_albedo.w + albedo * (1-primary_albedo.w);
 		vec4 color = albedo * primary_albedo;
-		imageStore(reflectionGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(color.xyz,1));
-		imageStore(albedoGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(color.xyz,1));
-		imageStore(normalGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(rrp.normal.xyz, rrp.material));
-		imageStore(posGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(rrp.pos.xyz, rrp.cluster));
+		imageStore(reflectionGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(color.xyz,1));
+		imageStore(albedoGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(color.xyz,1));
+		imageStore(normalGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(rrp.normal.xyz, rrp.material));
+		imageStore(posGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(rrp.pos.xyz, rrp.cluster));
 		
 		
 	}
@@ -490,24 +490,24 @@ void main()
 
 		vec4 color = primary_albedo * primary_albedo.w + albedo * (1-primary_albedo.w);
 
-		// vec4 trans = imageLoad(transparentGBuffer, ivec2(gl_LaunchIDNV.xy));
+		// vec4 trans = imageLoad(transparentGBuffer, ivec2(gl_LaunchIDEXT.xy));
 		// 	vec4 cout = alpha_blend( trans, vec4(color.xyz,1));
-		// imageStore(transparentGBuffer, ivec2(gl_LaunchIDNV.xy), trans + color);
+		// imageStore(transparentGBuffer, ivec2(gl_LaunchIDEXT.xy), trans + color);
 		//color += rrp.transparent;
-		vec4 trans = imageLoad(transparentGBuffer, ivec2(gl_LaunchIDNV.xy));
+		vec4 trans = imageLoad(transparentGBuffer, ivec2(gl_LaunchIDEXT.xy));
 		trans.xyz += rrp.transparent.xyz;
 		trans.w =0;
-		imageStore(transparentGBuffer, ivec2(gl_LaunchIDNV.xy), trans);
+		imageStore(transparentGBuffer, ivec2(gl_LaunchIDEXT.xy), trans);
 
-		imageStore(albedoGBuffer, ivec2(gl_LaunchIDNV.xy), color);
-		imageStore(normalGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(rrp.normal.xyz,rrp.material));
-		imageStore(posGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(rrp.pos.xyz, rrp.cluster));
+		imageStore(albedoGBuffer, ivec2(gl_LaunchIDEXT.xy), color);
+		imageStore(normalGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(rrp.normal.xyz,rrp.material));
+		imageStore(posGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(rrp.pos.xyz, rrp.cluster));
 	}
 
 	if(rrp.material == MATERIAL_KIND_SKY ) {
-		imageStore(objectGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(-1, -1, uintBitsToFloat(uvec2(~0u))));
-		imageStore(motionGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(-1,-1,-1, 9999.0));
-		imageStore(viewGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(originalDir.xyz, rrp.material));
+		imageStore(objectGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(-1, -1, uintBitsToFloat(uvec2(~0u))));
+		imageStore(motionGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(-1,-1,-1, 9999.0));
+		imageStore(viewGBuffer, ivec2(gl_LaunchIDEXT.xy), vec4(originalDir.xyz, rrp.material));
 	}
 }
 

@@ -348,9 +348,13 @@ void VK_CreateBufferMemory(VkDeviceSize size, VkBufferUsageFlags usage,
 	vkGetBufferMemoryRequirements(vk.device, *buffer, &memReq);
 	//qDebug("allocating %u bytes for buffer", uint32_t(memReq.size));
 
+	VkMemoryAllocateFlagsInfo memAllocFlags = { 0 };
+	memAllocFlags.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO;
+	memAllocFlags.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+
 	VkMemoryAllocateInfo memAllocInfo = {
 		VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		NULL,
+		(usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) ? &memAllocFlags : NULL,
 		memReq.size,
 		VK_FindMemoryTypeIndex(memReq.memoryTypeBits, properties)
 	};
@@ -443,18 +447,6 @@ uint32_t VK_DeviceLocalMemoryIndex()
 		}
 	}
 	return deviceLocalMemIndex;
-}
-
-/*
-* RTX MEMORY
-*/
-void VK_GetAccelerationStructureMemoryRequirements(VkAccelerationStructureNV as, VkAccelerationStructureMemoryRequirementsTypeNV type, VkMemoryRequirements2 *memreq){
-	VkAccelerationStructureMemoryRequirementsInfoNV memoryRequirementsInfoScratch = { 0 };
-	memoryRequirementsInfoScratch.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_NV;
-	memoryRequirementsInfoScratch.accelerationStructure = as;
-	memoryRequirementsInfoScratch.type = type;
-	memreq->sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
-	vkGetAccelerationStructureMemoryRequirementsNV(vk.device, &memoryRequirementsInfoScratch, memreq);
 }
 
 /*

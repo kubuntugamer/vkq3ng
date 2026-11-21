@@ -297,12 +297,35 @@ typedef struct {
 	uint32_t       mask : 8;
 	uint32_t       instanceOffset : 24;
 	uint32_t       flags : 8;
-	uint64_t       accelerationStructureHandle;
-} VkGeometryInstanceNV; // needed for top AS
+	uint64_t       accelerationStructureReference;
+} VkGeometryInstanceNV; // binary-compatible with VkAccelerationStructureInstanceKHR
 typedef struct {
-	VkAccelerationStructureNV		accelerationStructure;
-	uint64_t						handle;
-	VkGeometryNV					geometries;
+	VkStructureType		sType;			// unused, kept for source compatibility
+	VkGeometryTypeKHR	geometryType;
+	union {
+		struct {
+			VkStructureType	sType;		// unused
+			VkBuffer		vertexData;
+			VkBuffer		indexData;
+			VkDeviceSize	vertexOffset;
+			VkDeviceSize	indexOffset;
+			uint32_t		vertexCount;
+			uint32_t		indexCount;
+			VkFormat		vertexFormat;
+			VkIndexType		indexType;
+			VkDeviceSize	vertexStride;
+		} triangles;
+		struct {
+			VkStructureType	sType;		// unused
+		} aabbs;
+	} geometry;
+	VkGeometryFlagsKHR	flags;
+} vkRTGeometry;
+
+typedef struct {
+	VkAccelerationStructureKHR		accelerationStructure;
+	uint64_t						handle;			// device address for instance records
+	vkRTGeometry					geometries;
 	ASInstanceData					data;
 	VkGeometryInstanceNV			geometryInstance;
 	VkDeviceSize					offset;			// offset in static or dynamic buffer
@@ -1013,13 +1036,13 @@ Vulkan
 
 ==============================================================================
 */
-#define VK_MAX_SWAPCHAIN_SIZE 3
+#define VK_MAX_SWAPCHAIN_SIZE 8
 #define VK_MAX_SURFACE_FORMAT_ARRAY_SIZE 10
 #define VK_INDEX_DATA_SIZE 1024 * 1024
 #define VK_VERTEX_ATTRIBUTE_DATA_SIZE 512 * 1024
 #define VK_MAX_NUM_PIPELINES 128
 
-#define VK_GLOBAL_IMAGEARRAY_SHADER_STAGE_FLAGS (VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_COMPUTE_BIT)
+#define VK_GLOBAL_IMAGEARRAY_SHADER_STAGE_FLAGS (VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_COMPUTE_BIT)
 
 // RTX
 // the aligment size for AS buffers
@@ -1035,7 +1058,7 @@ typedef struct {
 	union {
 		VkDescriptorImageInfo*						descImageInfo;
 		VkDescriptorBufferInfo						descBufferInfo;
-		VkWriteDescriptorSetAccelerationStructureNV descAccelerationStructureInfo;
+		VkWriteDescriptorSetAccelerationStructureKHR descAccelerationStructureInfo;
 	};
 	uint32_t										size;
 	uint32_t										updateSize;
@@ -1062,7 +1085,7 @@ typedef struct {
     VkShaderStageFlagBits *flags;
     VkPipelineShaderStageCreateInfo *shaderStageCreateInfos;
 	size_t shaderGroupSize;
-	VkRayTracingShaderGroupCreateInfoNV* shaderGroupCreateInfos;
+	VkRayTracingShaderGroupCreateInfoKHR* shaderGroupCreateInfos;
 } vkshader_t;
 
 typedef struct {
@@ -1113,6 +1136,7 @@ typedef struct {
     byte* p;
     VkBuffer buffer;
     VkDeviceMemory memory;
+    VkDeviceAddress deviceAddress;
 } vkbuffer_t;
 
 typedef struct {
@@ -1172,7 +1196,8 @@ typedef struct {
 
 	VkPhysicalDeviceProperties	deviceProperties;
 	VkPhysicalDeviceProperties2 deviceProperties2;
-	VkPhysicalDeviceRayTracingPropertiesNV rayTracingProperties;
+	VkPhysicalDeviceRayTracingPipelinePropertiesKHR rayTracingProperties;
+	VkPhysicalDeviceAccelerationStructurePropertiesKHR accelerationStructureProperties;
 
 	vkqueueFamilyIndices_t		queryFamilyIndices;
 
@@ -1224,6 +1249,8 @@ typedef struct {
 	VkPipeline handle;
 
 	vkbuffer_t		shaderBindingTableBuffer;
+	uint32_t		sbtRecordStride;
+	uint32_t		sbtGroupCount;
 
 	vkdescriptor_t* descriptor;
 	vkdescriptor_t* descriptor2;
@@ -1272,15 +1299,15 @@ typedef struct {
 
 typedef struct {
 	VkDeviceMemory memory;
-	VkAccelerationStructureNV accelerationStructure;
+	VkAccelerationStructureKHR accelerationStructure;
 	uint64_t handle;
 	uint32_t geometryCount;
 	
 } vkaccelerationStructure_t;
 
 typedef struct {
-	VkAccelerationStructureNV	accelerationStructure;
-	uint64_t					handle;
+	VkAccelerationStructureKHR	accelerationStructure;
+	uint64_t					handle;			// device address
 	VkDeviceSize				offset;
 } vktopAS_t;
 

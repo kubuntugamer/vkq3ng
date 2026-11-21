@@ -98,6 +98,7 @@ PFN_vkDestroySurfaceKHR                         vkDestroySurfaceKHR;
 /* Physical Device */
 PFN_vkGetPhysicalDeviceProperties				vkGetPhysicalDeviceProperties;
 PFN_vkGetPhysicalDeviceProperties2				vkGetPhysicalDeviceProperties2;
+PFN_vkGetPhysicalDeviceFeatures2				vkGetPhysicalDeviceFeatures2;
 PFN_vkGetPhysicalDeviceSurfaceSupportKHR		vkGetPhysicalDeviceSurfaceSupportKHR;
 PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR	vkGetPhysicalDeviceSurfaceCapabilitiesKHR;
 PFN_vkGetPhysicalDeviceSurfaceSupportKHR		vkGetPhysicalDeviceSurfaceSupportKHR;
@@ -237,17 +238,17 @@ PFN_vkDestroyPipelineLayout						vkDestroyPipelineLayout;
 PFN_vkDestroyPipelineCache						vkDestroyPipelineCache;
 
 /*
-** NV RTX
+** KHR ray tracing
 */
-PFN_vkCreateAccelerationStructureNV				vkCreateAccelerationStructureNV;
-PFN_vkDestroyAccelerationStructureNV			vkDestroyAccelerationStructureNV;
-PFN_vkBindAccelerationStructureMemoryNV			vkBindAccelerationStructureMemoryNV;
-PFN_vkGetAccelerationStructureHandleNV			vkGetAccelerationStructureHandleNV;
-PFN_vkGetAccelerationStructureMemoryRequirementsNV vkGetAccelerationStructureMemoryRequirementsNV;
-PFN_vkCmdBuildAccelerationStructureNV			vkCmdBuildAccelerationStructureNV;
-PFN_vkCreateRayTracingPipelinesNV				vkCreateRayTracingPipelinesNV;
-PFN_vkGetRayTracingShaderGroupHandlesNV			vkGetRayTracingShaderGroupHandlesNV;
-PFN_vkCmdTraceRaysNV							vkCmdTraceRaysNV;
+PFN_vkCreateAccelerationStructureKHR			vkCreateAccelerationStructureKHR;
+PFN_vkDestroyAccelerationStructureKHR			vkDestroyAccelerationStructureKHR;
+PFN_vkGetAccelerationStructureBuildSizesKHR		vkGetAccelerationStructureBuildSizesKHR;
+PFN_vkCmdBuildAccelerationStructuresKHR			vkCmdBuildAccelerationStructuresKHR;
+PFN_vkGetAccelerationStructureDeviceAddressKHR	vkGetAccelerationStructureDeviceAddressKHR;
+PFN_vkCreateRayTracingPipelinesKHR				vkCreateRayTracingPipelinesKHR;
+PFN_vkGetRayTracingShaderGroupHandlesKHR		vkGetRayTracingShaderGroupHandlesKHR;
+PFN_vkCmdTraceRaysKHR							vkCmdTraceRaysKHR;
+PFN_vkGetBufferDeviceAddress					vkGetBufferDeviceAddress;
 
 /* Platform entry points */
 qboolean VK_Setup(void* p1, void* p2);

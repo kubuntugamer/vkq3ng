@@ -1,14 +1,14 @@
-layout(location = PAYLOAD_BRDF) rayPayloadNV RayPayload rp;
-layout(location = PAYLOAD_SHADOW) rayPayloadNV ShadowRayPayload rp_shadow;
+layout(location = PAYLOAD_BRDF) rayPayloadEXT RayPayload rp;
+layout(location = PAYLOAD_SHADOW) rayPayloadEXT ShadowRayPayload rp_shadow;
 
-layout(binding = BINDING_OFFSET_AS, set = 0) uniform accelerationStructureNV topLevelAS;
+layout(binding = BINDING_OFFSET_AS, set = 0) uniform accelerationStructureEXT topLevelAS;
 
 
 
 void trace_ray(Ray ray, uint cullMask)
 {
-	const uint rayFlags = gl_RayFlagsNoneNV;//gl_RayFlagsCullFrontFacingTrianglesNV;//gl_RayFlagsOpaqueNV;// | gl_RayFlagsCullBackFacingTrianglesNV;
-	//const uint rayFlags = gl_RayFlagsOpaqueNV | gl_RayFlagsCullBackFacingTrianglesNV;
+	const uint rayFlags = gl_RayFlagsNoneEXT;//gl_RayFlagsCullFrontFacingTrianglesEXT;//gl_RayFlagsOpaqueEXT;// | gl_RayFlagsCullBackFacingTrianglesEXT;
+	//const uint rayFlags = gl_RayFlagsOpaqueEXT | gl_RayFlagsCullBackFacingTrianglesEXT;
 	//const uint cullMask = RAY_FIRST_PERSON_VISIBLE;
 	rp.transparent = vec4(0);
 	rp.max_transparent_distance = 0;
@@ -16,41 +16,41 @@ void trace_ray(Ray ray, uint cullMask)
 	rp.transLight = false;
 	rp.trans = false;
 
-	traceNV( topLevelAS, rayFlags, cullMask,
+	traceRayEXT( topLevelAS, rayFlags, cullMask,
 			SBT_RCHIT_OPAQUE /*sbtRecordOffset*/, 0 /*sbtRecordStride*/, SBT_RMISS_PATH_TRACER /*missIndex*/,
 			ray.origin, ray.t_min, ray.direction, ray.t_max, PAYLOAD_BRDF);
 }
 
 void traceRayOpaque(Ray ray, uint cullMask)
 {
-	const uint rayFlags = gl_RayFlagsCullFrontFacingTrianglesNV;
+	const uint rayFlags = gl_RayFlagsCullFrontFacingTrianglesEXT;
 	rp.transparent = vec4(0);
 	rp.max_transparent_distance = 0;
 	rp.addCount = 0;
 	rp.transLight = false;
 	rp.trans = false;
 
-	traceNV( topLevelAS, rayFlags, cullMask,
+	traceRayEXT( topLevelAS, rayFlags, cullMask,
 			SBT_RCHIT_OPAQUE /*sbtRecordOffset*/, 0 /*sbtRecordStride*/, SBT_RMISS_PATH_TRACER /*missIndex*/,
 			ray.origin, ray.t_min, ray.direction, ray.t_max, PAYLOAD_BRDF);
 }
 void traceRay(Ray ray, uint cullMask)
 {
-	const uint rayFlags = gl_RayFlagsNoOpaqueNV  ;
+	const uint rayFlags = gl_RayFlagsNoOpaqueEXT  ;
 	rp.transparent = vec4(0);
 	rp.max_transparent_distance = 0;
 	rp.addCount = 0;
 	rp.transLight = false;
 	rp.trans = false;
 
-	traceNV( topLevelAS, rayFlags, cullMask,
+	traceRayEXT( topLevelAS, rayFlags, cullMask,
 			SBT_RCHIT_OPAQUE /*sbtRecordOffset*/, 0 /*sbtRecordStride*/, SBT_RMISS_PATH_TRACER /*missIndex*/,
 			ray.origin, ray.t_min, ray.direction, ray.t_max, PAYLOAD_BRDF);
 }
 
 float trace_shadow_ray(vec3 pos, vec3 dir, float t_min, float t_max, bool is_player)
 {
-	const uint rayFlags = gl_RayFlagsNoOpaqueNV ;//gl_RayFlagsTerminateOnFirstHitNV | gl_RayFlagsSkipClosestHitShaderNV;
+	const uint rayFlags = gl_RayFlagsNoOpaqueEXT ;//gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT;
 	uint cullMask = RAY_MIRROR_OPAQUE_VISIBLE;
 	if(is_player) {
 		cullMask = RAY_FIRST_PERSON_OPAQUE_VISIBLE;
@@ -64,7 +64,7 @@ float trace_shadow_ray(vec3 pos, vec3 dir, float t_min, float t_max, bool is_pla
 
 	rp_shadow.visFactor = 0.0f;
 
-	traceNV( topLevelAS, rayFlags, cullMask,
+	traceRayEXT( topLevelAS, rayFlags, cullMask,
 			SBT_RCHIT_SHADOW_RAY /*sbtRecordOffset*/, 0 /*sbtRecordStride*/, SBT_RMISS_SHADOW_RAY /*missIndex*/,
 			ray.origin, ray.t_min, ray.direction, ray.t_max, PAYLOAD_SHADOW);
 
@@ -78,7 +78,7 @@ void traceStraight(vec3 P, vec3 D, vec3 N){
 	// else
 	// 	P -= N * 0.001;
 
-	traceNV( topLevelAS, gl_RayFlagsNoneNV, RAY_FIRST_PERSON_OPAQUE_VISIBLE | RAY_FIRST_PERSON_PARTICLE_VISIBLE,
+	traceRayEXT( topLevelAS, gl_RayFlagsNoneEXT, RAY_FIRST_PERSON_OPAQUE_VISIBLE | RAY_FIRST_PERSON_PARTICLE_VISIBLE,
 			SBT_RCHIT_OPAQUE, 0, SBT_RMISS_PATH_TRACER,
 			P, 0.01, D, 10000.0, PAYLOAD_REFLECT);
 }
@@ -91,7 +91,7 @@ void traceReflect(vec3 P, vec3 D, vec3 N, bool player){
 
 	uint mask = RAY_MIRROR_OPAQUE_VISIBLE | RAY_MIRROR_PARTICLE_VISIBLE;
 	if(player) mask = RAY_FIRST_PERSON_OPAQUE_VISIBLE | RAY_FIRST_PERSON_PARTICLE_VISIBLE;
-	traceNV( topLevelAS, gl_RayFlagsNoneNV, mask,
+	traceRayEXT( topLevelAS, gl_RayFlagsNoneEXT, mask,
 			SBT_RCHIT_OPAQUE, 0, SBT_RMISS_PATH_TRACER,
 			P, 0.01, D, 10000.0, PAYLOAD_REFLECT);
 }
@@ -105,7 +105,7 @@ void traceRefract(vec3 P, vec3 D, vec3 N, float n1, float n2, bool player){
 		
 	uint mask = RAY_MIRROR_OPAQUE_VISIBLE | RAY_MIRROR_PARTICLE_VISIBLE;
 	if(player) mask = RAY_FIRST_PERSON_OPAQUE_VISIBLE | RAY_FIRST_PERSON_PARTICLE_VISIBLE;
-	traceNV( topLevelAS, gl_RayFlagsNoneNV, mask,
+	traceRayEXT( topLevelAS, gl_RayFlagsNoneEXT, mask,
 			SBT_RCHIT_OPAQUE, 0, SBT_RMISS_PATH_TRACER,
 			P, 0.01, D, 10000.0, PAYLOAD_REFLECT);
 }

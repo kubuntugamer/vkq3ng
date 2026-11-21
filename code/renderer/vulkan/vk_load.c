@@ -44,6 +44,7 @@ qboolean VK_LoadInstanceFunctions(void)
 	/* Physical Device */
 	vkGetPhysicalDeviceProperties = VK_INSTANCE_LEVEL_FUNCTION(vkGetPhysicalDeviceProperties);
 	vkGetPhysicalDeviceProperties2 = VK_INSTANCE_LEVEL_FUNCTION(vkGetPhysicalDeviceProperties2);
+	vkGetPhysicalDeviceFeatures2 = VK_INSTANCE_LEVEL_FUNCTION(vkGetPhysicalDeviceFeatures2);
 	vkGetPhysicalDeviceSurfaceSupportKHR = VK_INSTANCE_LEVEL_FUNCTION(vkGetPhysicalDeviceSurfaceSupportKHR);
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR = VK_INSTANCE_LEVEL_FUNCTION(vkGetPhysicalDeviceSurfaceCapabilitiesKHR);
 	vkGetPhysicalDeviceSurfaceSupportKHR = VK_INSTANCE_LEVEL_FUNCTION(vkGetPhysicalDeviceSurfaceSupportKHR);
@@ -182,18 +183,24 @@ qboolean VK_LoadDeviceFunctions(void)
 	vkDestroyPipelineCache = VK_DEVICE_LEVEL_FUNCTION(vkDestroyPipelineCache);
 
 	/*
-	** NV RTX (only when the selected device actually exposes it)
+	** KHR ray tracing (only when the selected device actually exposes it)
 	*/
 	if (vk_raytracing_enabled) {
-	vkCreateAccelerationStructureNV = VK_DEVICE_LEVEL_FUNCTION(vkCreateAccelerationStructureNV);
-	vkDestroyAccelerationStructureNV = VK_DEVICE_LEVEL_FUNCTION(vkDestroyAccelerationStructureNV);
-	vkBindAccelerationStructureMemoryNV = VK_DEVICE_LEVEL_FUNCTION(vkBindAccelerationStructureMemoryNV);
-	vkGetAccelerationStructureHandleNV = VK_DEVICE_LEVEL_FUNCTION(vkGetAccelerationStructureHandleNV);
-	vkGetAccelerationStructureMemoryRequirementsNV = VK_DEVICE_LEVEL_FUNCTION(vkGetAccelerationStructureMemoryRequirementsNV);
-	vkCmdBuildAccelerationStructureNV = VK_DEVICE_LEVEL_FUNCTION(vkCmdBuildAccelerationStructureNV);
-	vkCreateRayTracingPipelinesNV = VK_DEVICE_LEVEL_FUNCTION(vkCreateRayTracingPipelinesNV);
-	vkGetRayTracingShaderGroupHandlesNV = VK_DEVICE_LEVEL_FUNCTION(vkGetRayTracingShaderGroupHandlesNV);
-	vkCmdTraceRaysNV = VK_DEVICE_LEVEL_FUNCTION(vkCmdTraceRaysNV);
+	vkCreateAccelerationStructureKHR = VK_DEVICE_LEVEL_FUNCTION(vkCreateAccelerationStructureKHR);
+	vkDestroyAccelerationStructureKHR = VK_DEVICE_LEVEL_FUNCTION(vkDestroyAccelerationStructureKHR);
+	vkGetAccelerationStructureBuildSizesKHR = VK_DEVICE_LEVEL_FUNCTION(vkGetAccelerationStructureBuildSizesKHR);
+	vkCmdBuildAccelerationStructuresKHR = VK_DEVICE_LEVEL_FUNCTION(vkCmdBuildAccelerationStructuresKHR);
+	vkGetAccelerationStructureDeviceAddressKHR = VK_DEVICE_LEVEL_FUNCTION(vkGetAccelerationStructureDeviceAddressKHR);
+	vkCreateRayTracingPipelinesKHR = VK_DEVICE_LEVEL_FUNCTION(vkCreateRayTracingPipelinesKHR);
+	vkGetRayTracingShaderGroupHandlesKHR = VK_DEVICE_LEVEL_FUNCTION(vkGetRayTracingShaderGroupHandlesKHR);
+	vkCmdTraceRaysKHR = VK_DEVICE_LEVEL_FUNCTION(vkCmdTraceRaysKHR);
+	vkGetBufferDeviceAddress = (PFN_vkGetBufferDeviceAddress)vkGetDeviceProcAddr(vk.device, "vkGetBufferDeviceAddress");
+	if (!vkGetBufferDeviceAddress)
+		vkGetBufferDeviceAddress = (PFN_vkGetBufferDeviceAddress)vkGetDeviceProcAddr(vk.device, "vkGetBufferDeviceAddressKHR");
+	if (!vkGetBufferDeviceAddress) {
+		ri.Printf(PRINT_WARNING, "Vulkan: missing device function vkGetBufferDeviceAddress\n");
+		return qfalse;
+	}
 	}
 
     return qtrue;

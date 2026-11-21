@@ -2266,7 +2266,7 @@ void R_CalcClusterAABB(mnode_t* node) {
 }
 
 void R_CreatePrimaryRaysPipeline() {
-	VkShaderStageFlagBits flags = VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_ANY_HIT_BIT_NV | VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV;
+	VkShaderStageFlagBits flags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
 
 	for (int i = 0; i < vk.swapchain.imageCount; i++) {
 		VK_AddAccelerationStructure(&vk_d.rtxDescriptor[i], BINDING_OFFSET_AS, flags);
@@ -2304,75 +2304,75 @@ void R_CreatePrimaryRaysPipeline() {
 		VK_AddStorageBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_CLUSTER_ENTITY_STATIC, flags);
 		VK_SetStorageBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_CLUSTER_ENTITY_STATIC, flags, vk_d.geometry.cluster_entity_static.buffer);
 
-		VK_AddSampler(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ENVMAP, VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_MISS_BIT_NV);
-		VK_SetSampler(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ENVMAP, VK_SHADER_STAGE_RAYGEN_BIT_NV | VK_SHADER_STAGE_MISS_BIT_NV, vk_d.accelerationStructures.envmap.sampler, vk_d.accelerationStructures.envmap.view);
-		VK_AddSampler(&vk_d.rtxDescriptor[i], BINDING_OFFSET_BLUE_NOISE, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetSampler(&vk_d.rtxDescriptor[i], BINDING_OFFSET_BLUE_NOISE, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.blueNoiseTex.sampler, vk_d.blueNoiseTex.view);
+		VK_AddSampler(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ENVMAP, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR);
+		VK_SetSampler(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ENVMAP, VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR, vk_d.accelerationStructures.envmap.sampler, vk_d.accelerationStructures.envmap.view);
+		VK_AddSampler(&vk_d.rtxDescriptor[i], BINDING_OFFSET_BLUE_NOISE, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetSampler(&vk_d.rtxDescriptor[i], BINDING_OFFSET_BLUE_NOISE, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.blueNoiseTex.sampler, vk_d.blueNoiseTex.view);
 
-		VK_AddStorageBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_UBO_LIGHTS, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_UBO_LIGHTS, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.uboLightList[i].buffer);
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_VIS_DATA, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_VIS_DATA, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.accelerationStructures.visData.view);
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_LIGHT_VIS_DATA, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_LIGHT_VIS_DATA, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.accelerationStructures.lightVisData.view);
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_LIGHT_VIS_DATA2, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_LIGHT_VIS_DATA2, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.accelerationStructures.lightVisData2.view);
+		VK_AddStorageBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_UBO_LIGHTS, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_UBO_LIGHTS, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.uboLightList[i].buffer);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_VIS_DATA, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_VIS_DATA, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.accelerationStructures.visData.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_LIGHT_VIS_DATA, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_LIGHT_VIS_DATA, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.accelerationStructures.lightVisData.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_LIGHT_VIS_DATA2, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_LIGHT_VIS_DATA2, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.accelerationStructures.lightVisData2.view);
 
 		
 		// global ubo
-		VK_AddUniformBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GLOBAL_UBO, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetUniformBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GLOBAL_UBO, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.uboBuffer[i].buffer);
+		VK_AddUniformBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GLOBAL_UBO, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetUniformBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GLOBAL_UBO, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.uboBuffer[i].buffer);
 
 
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_DIRECT_ILLUMINATION, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_DIRECT_ILLUMINATION, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.gBuffer[i].directIllumination.view);
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_INDIRECT_ILLUMINATION, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_INDIRECT_ILLUMINATION, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.gBuffer[i].indirectIllumination.view);
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_ALBEDO, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_ALBEDO, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.gBuffer[i].albedo.view);
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_NORMAL, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_NORMAL, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.gBuffer[i].normals.view);
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_REFLECTION, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_REFLECTION, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.gBuffer[i].reflection.view);
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_POS, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_POS, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.gBuffer[i].position.view);
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_OBJECT, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_OBJECT, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.gBuffer[i].objectInfo.view);
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_MOTION, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_MOTION, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.gBuffer[i].motion.view);
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_VIEW_DIR, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_VIEW_DIR, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.gBuffer[i].viewDir.view);
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_TRANSPARENT, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_TRANSPARENT, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.gBuffer[i].transparent.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_DIRECT_ILLUMINATION, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_DIRECT_ILLUMINATION, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.gBuffer[i].directIllumination.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_INDIRECT_ILLUMINATION, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_INDIRECT_ILLUMINATION, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.gBuffer[i].indirectIllumination.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_ALBEDO, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_ALBEDO, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.gBuffer[i].albedo.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_NORMAL, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_NORMAL, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.gBuffer[i].normals.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_REFLECTION, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_REFLECTION, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.gBuffer[i].reflection.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_POS, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_POS, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.gBuffer[i].position.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_OBJECT, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_OBJECT, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.gBuffer[i].objectInfo.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_MOTION, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_MOTION, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.gBuffer[i].motion.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_VIEW_DIR, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_VIEW_DIR, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.gBuffer[i].viewDir.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_TRANSPARENT, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_TRANSPARENT, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.gBuffer[i].transparent.view);
 		// result
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_RESULT_OUTPUT, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_RESULT_OUTPUT, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.accelerationStructures.resultImage[i].view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_RESULT_OUTPUT, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_RESULT_OUTPUT, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.accelerationStructures.resultImage[i].view);
 		// accumulation
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_RESULT_ACCUMULATION, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_RESULT_ACCUMULATION, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.accelerationStructures.accumulationImage[i].view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_RESULT_ACCUMULATION, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_RESULT_ACCUMULATION, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.accelerationStructures.accumulationImage[i].view);
 
 		// asvgf
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ASVGF_RNG, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ASVGF_RNG, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.asvgf[i].rngSeed.view);
-		//VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ASVGF_RNG_B, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		//VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ASVGF_RNG_B, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.asvgf[i].rngSeedB.view);
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ASVGF_GRAD_SMPL_POS, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ASVGF_GRAD_SMPL_POS, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.asvgf[i].gradSamplePos.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ASVGF_RNG, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ASVGF_RNG, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.asvgf[i].rngSeed.view);
+		//VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ASVGF_RNG_B, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		//VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ASVGF_RNG_B, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.asvgf[i].rngSeedB.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ASVGF_GRAD_SMPL_POS, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_ASVGF_GRAD_SMPL_POS, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.asvgf[i].gradSamplePos.view);
 
 		int prevIndex = (i + (vk.swapchain.imageCount - 1)) % vk.swapchain.imageCount;
-		VK_AddUniformBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GLOBAL_UBO_PREV, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetUniformBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GLOBAL_UBO_PREV, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.uboBuffer[prevIndex].buffer);
+		VK_AddUniformBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GLOBAL_UBO_PREV, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetUniformBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GLOBAL_UBO_PREV, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.uboBuffer[prevIndex].buffer);
 		// accumulation prev
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_RESULT_ACCUMULATION_PREV, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_RESULT_ACCUMULATION_PREV, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.accelerationStructures.accumulationImage[prevIndex].view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_RESULT_ACCUMULATION_PREV, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_RESULT_ACCUMULATION_PREV, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.accelerationStructures.accumulationImage[prevIndex].view);
 		
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_POS_FWD, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_POS_FWD, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.asvgf[i].positionFwd.view);
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_OBJECT_FWD, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_OBJECT_FWD, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.asvgf[i].objectFwd.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_POS_FWD, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_POS_FWD, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.asvgf[i].positionFwd.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_OBJECT_FWD, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_OBJECT_FWD, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.asvgf[i].objectFwd.view);
 
-		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_DEPTH_NORMAL, VK_SHADER_STAGE_RAYGEN_BIT_NV);
-		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_DEPTH_NORMAL, VK_SHADER_STAGE_RAYGEN_BIT_NV, vk_d.gBuffer[i].depthNormal.view);
+		VK_AddStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_DEPTH_NORMAL, VK_SHADER_STAGE_RAYGEN_BIT_KHR);
+		VK_SetStorageImage(&vk_d.rtxDescriptor[i], BINDING_OFFSET_GBUFFER_DEPTH_NORMAL, VK_SHADER_STAGE_RAYGEN_BIT_KHR, vk_d.gBuffer[i].depthNormal.view);
 
 		VK_AddStorageBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_INSTANCE_DATA_PREV, flags);
 		VK_SetStorageBuffer(&vk_d.rtxDescriptor[i], BINDING_OFFSET_INSTANCE_DATA_PREV, flags, vk_d.instanceDataBuffer[prevIndex].buffer);
@@ -2649,8 +2649,8 @@ void R_CreatePrimaryRaysPipeline() {
 	VK_RTX_PrimaryRayShader(&primaryRayShader);
 	VK_Set2RayTracingDescriptorSets(&vk_d.primaryRaysPipeline, &vk_d.rtxDescriptor[0], &vk_d.imageDescriptor);
 	VK_SetRayTracingShader(&vk_d.primaryRaysPipeline, &primaryRayShader);
-	//VK_AddRayTracingPushConstant(&vk_d.primaryRaysPipeline, VK_SHADER_STAGE_RAYGEN_BIT_NV, 0, 40 * sizeof(float));
-	//VK_AddRayTracingPushConstant(&vk_d.primaryRaysPipeline, VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV, 40 * sizeof(float), 16 * sizeof(float));
+	//VK_AddRayTracingPushConstant(&vk_d.primaryRaysPipeline, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, 40 * sizeof(float));
+	//VK_AddRayTracingPushConstant(&vk_d.primaryRaysPipeline, VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR, 40 * sizeof(float), 16 * sizeof(float));
 	VK_FinishRayTracingPipeline(&vk_d.primaryRaysPipeline);
 
 	vkshader_t reflectRaysShader = { 0 };
@@ -2762,9 +2762,9 @@ void R_PreparePT() {
 
 	// world static
 	{
-		vk_d.bottomASWorldStatic.geometries.sType = VK_STRUCTURE_TYPE_GEOMETRY_NV;
-		vk_d.bottomASWorldStatic.geometries.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_NV;
-		vk_d.bottomASWorldStatic.geometries.geometry.triangles.sType = VK_STRUCTURE_TYPE_GEOMETRY_TRIANGLES_NV;
+		vk_d.bottomASWorldStatic.geometries.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+		vk_d.bottomASWorldStatic.geometries.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+		vk_d.bottomASWorldStatic.geometries.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
 		vk_d.bottomASWorldStatic.geometries.geometry.triangles.vertexCount = offsetXYZ;
 		vk_d.bottomASWorldStatic.geometries.geometry.triangles.vertexStride = sizeof(VertexBuffer);
 		vk_d.bottomASWorldStatic.geometries.geometry.triangles.indexCount = offsetIDX;
@@ -2776,7 +2776,7 @@ void R_PreparePT() {
 		}
 		vk_d.bottomASWorldStatic.geometries.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
 		vk_d.bottomASWorldStatic.geometries.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
-		vk_d.bottomASWorldStatic.geometries.geometry.aabbs.sType = VK_STRUCTURE_TYPE_GEOMETRY_AABB_NV;
+		vk_d.bottomASWorldStatic.geometries.geometry.aabbs.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR;
 		vk_d.bottomASWorldStatic.geometries.flags = 0;
 
 		vk_d.bottomASWorldStatic.data.offsetIDX = 0;
@@ -2786,15 +2786,15 @@ void R_PreparePT() {
 		VK_BeginSingleTimeCommands(&commandBuffer);
 		VK_CreateBottomAS(commandBuffer,
 			&vk_d.bottomASWorldStatic, &vk_d.basBufferStaticWorld,
-			&offsetStaticWorld, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_NV);
+			&offsetStaticWorld, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 		VK_EndSingleTimeCommands(&commandBuffer);
 
 		vk_d.bottomASWorldStatic.data.type = BAS_WORLD_STATIC;
 		vk_d.bottomASWorldStatic.geometryInstance.instanceCustomIndex = 0;
 		vk_d.bottomASWorldStatic.geometryInstance.mask = RAY_FIRST_PERSON_MIRROR_OPAQUE_VISIBLE;
-		vk_d.bottomASWorldStatic.geometryInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_NV;
-		//vk_d.bottomASWorldStatic.geometryInstance.flags |= VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
-		vk_d.bottomASWorldStatic.geometryInstance.accelerationStructureHandle = vk_d.bottomASWorldStatic.handle;
+		vk_d.bottomASWorldStatic.geometryInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
+		//vk_d.bottomASWorldStatic.geometryInstance.flags |= VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+		vk_d.bottomASWorldStatic.geometryInstance.accelerationStructureReference = vk_d.bottomASWorldStatic.handle;
 
 		float tM[12];
 		tM[0] = 1; tM[1] = 0; tM[2] = 0; tM[3] = 0;
@@ -2805,9 +2805,9 @@ void R_PreparePT() {
 	}
 	// world dynamic data
 	{
-		vk_d.bottomASWorldDynamicData.geometries.sType = VK_STRUCTURE_TYPE_GEOMETRY_NV;
-		vk_d.bottomASWorldDynamicData.geometries.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_NV;
-		vk_d.bottomASWorldDynamicData.geometries.geometry.triangles.sType = VK_STRUCTURE_TYPE_GEOMETRY_TRIANGLES_NV;
+		vk_d.bottomASWorldDynamicData.geometries.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+		vk_d.bottomASWorldDynamicData.geometries.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+		vk_d.bottomASWorldDynamicData.geometries.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
 		vk_d.bottomASWorldDynamicData.geometries.geometry.triangles.vertexCount = offsetXYZdynamicData;
 		vk_d.bottomASWorldDynamicData.geometries.geometry.triangles.vertexStride = sizeof(VertexBuffer);
 		vk_d.bottomASWorldDynamicData.geometries.geometry.triangles.indexCount = offsetIDXdynamicData;
@@ -2819,7 +2819,7 @@ void R_PreparePT() {
 		}
 		vk_d.bottomASWorldDynamicData.geometries.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
 		vk_d.bottomASWorldDynamicData.geometries.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
-		vk_d.bottomASWorldDynamicData.geometries.geometry.aabbs.sType = VK_STRUCTURE_TYPE_GEOMETRY_AABB_NV;
+		vk_d.bottomASWorldDynamicData.geometries.geometry.aabbs.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR;
 		vk_d.bottomASWorldDynamicData.geometries.flags = 0;
 
 		vk_d.bottomASWorldDynamicData.data.offsetIDX = 0;
@@ -2830,15 +2830,15 @@ void R_PreparePT() {
 		VkDeviceSize offset = 0;
 		VK_CreateBottomAS(commandBuffer,
 			&vk_d.bottomASWorldDynamicData, &vk_d.basBufferWorldDynamicData,
-			&offsetDynamicDataWorld, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_NV);
+			&offsetDynamicDataWorld, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 		VK_EndSingleTimeCommands(&commandBuffer);
 
 		vk_d.bottomASWorldDynamicData.data.type = BAS_WORLD_DYNAMIC_DATA;
 		vk_d.bottomASWorldDynamicData.geometryInstance.instanceCustomIndex = 0;
 		vk_d.bottomASWorldDynamicData.geometryInstance.mask = RAY_FIRST_PERSON_MIRROR_OPAQUE_VISIBLE;
-		vk_d.bottomASWorldDynamicData.geometryInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_NV;
-		vk_d.bottomASWorldDynamicData.geometryInstance.flags |= VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
-		vk_d.bottomASWorldDynamicData.geometryInstance.accelerationStructureHandle = vk_d.bottomASWorldDynamicData.handle;
+		vk_d.bottomASWorldDynamicData.geometryInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
+		vk_d.bottomASWorldDynamicData.geometryInstance.flags |= VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+		vk_d.bottomASWorldDynamicData.geometryInstance.accelerationStructureReference = vk_d.bottomASWorldDynamicData.handle;
 
 		float tM[12];
 		tM[0] = 1; tM[1] = 0; tM[2] = 0; tM[3] = 0;
@@ -2850,9 +2850,9 @@ void R_PreparePT() {
 	// world dynamic as
 	{
 		for (int i = 0; i < vk.swapchain.imageCount; i++) {
-			vk_d.bottomASWorldDynamicAS[i].geometries.sType = VK_STRUCTURE_TYPE_GEOMETRY_NV;
-			vk_d.bottomASWorldDynamicAS[i].geometries.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_NV;
-			vk_d.bottomASWorldDynamicAS[i].geometries.geometry.triangles.sType = VK_STRUCTURE_TYPE_GEOMETRY_TRIANGLES_NV;
+			vk_d.bottomASWorldDynamicAS[i].geometries.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+			vk_d.bottomASWorldDynamicAS[i].geometries.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+			vk_d.bottomASWorldDynamicAS[i].geometries.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
 			vk_d.bottomASWorldDynamicAS[i].geometries.geometry.triangles.vertexCount = offsetXYZdynamicAS;
 			vk_d.bottomASWorldDynamicAS[i].geometries.geometry.triangles.vertexStride = sizeof(VertexBuffer);
 			vk_d.bottomASWorldDynamicAS[i].geometries.geometry.triangles.indexCount = offsetIDXdynamicAS;
@@ -2864,7 +2864,7 @@ void R_PreparePT() {
 			}
 			vk_d.bottomASWorldDynamicAS[i].geometries.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
 			vk_d.bottomASWorldDynamicAS[i].geometries.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
-			vk_d.bottomASWorldDynamicAS[i].geometries.geometry.aabbs.sType = VK_STRUCTURE_TYPE_GEOMETRY_AABB_NV;
+			vk_d.bottomASWorldDynamicAS[i].geometries.geometry.aabbs.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR;
 			vk_d.bottomASWorldDynamicAS[i].geometries.flags = 0;
 
 			vk_d.bottomASWorldDynamicAS[i].data.offsetIDX = 0;
@@ -2875,15 +2875,15 @@ void R_PreparePT() {
 			VkDeviceSize offset = 0;
 			VK_CreateBottomAS(commandBuffer,
 				&vk_d.bottomASWorldDynamicAS[i], &vk_d.basBufferWorldDynamicAS[i],
-				&offsetDynamicASWorld[i], VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV);
+				&offsetDynamicASWorld[i], VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR);
 			VK_EndSingleTimeCommands(&commandBuffer);
 
 			vk_d.bottomASWorldDynamicAS[i].data.type = BAS_WORLD_DYNAMIC_AS;
 			vk_d.bottomASWorldDynamicAS[i].geometryInstance.instanceCustomIndex = 0;
 			vk_d.bottomASWorldDynamicAS[i].geometryInstance.mask = RAY_FIRST_PERSON_MIRROR_OPAQUE_VISIBLE;
-			vk_d.bottomASWorldDynamicAS[i].geometryInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_NV;
-			vk_d.bottomASWorldDynamicAS[i].geometryInstance.flags |= VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
-			vk_d.bottomASWorldDynamicAS[i].geometryInstance.accelerationStructureHandle = vk_d.bottomASWorldDynamicAS[i].handle;
+			vk_d.bottomASWorldDynamicAS[i].geometryInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
+			vk_d.bottomASWorldDynamicAS[i].geometryInstance.flags |= VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+			vk_d.bottomASWorldDynamicAS[i].geometryInstance.accelerationStructureReference = vk_d.bottomASWorldDynamicAS[i].handle;
 
 			float tM[12];
 			tM[0] = 1; tM[1] = 0; tM[2] = 0; tM[3] = 0;
@@ -2920,9 +2920,9 @@ void R_PreparePT() {
 	R_RecursiveCreateAS(s_worldData.nodes, &offsetIDX, &offsetXYZ, &offsetIDXdynamicData, &offsetXYZdynamicData, &offsetIDXdynamicAS, &offsetXYZdynamicAS, qtrue);
 	// world static trans
 	{
-		vk_d.bottomASWorldStaticTrans.geometries.sType = VK_STRUCTURE_TYPE_GEOMETRY_NV;
-		vk_d.bottomASWorldStaticTrans.geometries.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_NV;
-		vk_d.bottomASWorldStaticTrans.geometries.geometry.triangles.sType = VK_STRUCTURE_TYPE_GEOMETRY_TRIANGLES_NV;
+		vk_d.bottomASWorldStaticTrans.geometries.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+		vk_d.bottomASWorldStaticTrans.geometries.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+		vk_d.bottomASWorldStaticTrans.geometries.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
 		vk_d.bottomASWorldStaticTrans.geometries.geometry.triangles.vertexCount = offsetXYZ;
 		vk_d.bottomASWorldStaticTrans.geometries.geometry.triangles.vertexStride = sizeof(VertexBuffer);
 		vk_d.bottomASWorldStaticTrans.geometries.geometry.triangles.indexCount = offsetIDX;
@@ -2930,23 +2930,23 @@ void R_PreparePT() {
 		vk_d.bottomASWorldStaticTrans.geometries.geometry.triangles.indexData = vk_d.geometry.idx_world_static.buffer;
 		vk_d.bottomASWorldStaticTrans.geometries.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
 		vk_d.bottomASWorldStaticTrans.geometries.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
-		vk_d.bottomASWorldStaticTrans.geometries.geometry.aabbs.sType = VK_STRUCTURE_TYPE_GEOMETRY_AABB_NV;
+		vk_d.bottomASWorldStaticTrans.geometries.geometry.aabbs.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR;
 		vk_d.bottomASWorldStaticTrans.geometries.flags = 0;
 
 		VkCommandBuffer commandBuffer = { 0 };
 		VK_BeginSingleTimeCommands(&commandBuffer);
 		VK_CreateBottomAS(commandBuffer,
 			&vk_d.bottomASWorldStaticTrans, &vk_d.basBufferStaticWorld,
-			&offsetStaticWorld, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_NV);
+			&offsetStaticWorld, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 		VK_EndSingleTimeCommands(&commandBuffer);
 
 		vk_d.bottomASWorldStaticTrans.data.type = BAS_WORLD_STATIC;
 		vk_d.bottomASWorldStaticTrans.geometryInstance.instanceCustomIndex = 0;
 		vk_d.bottomASWorldStaticTrans.geometryInstance.instanceOffset = 1;
 		vk_d.bottomASWorldStaticTrans.geometryInstance.mask = RAY_FIRST_PERSON_MIRROR_OPAQUE_VISIBLE;
-		vk_d.bottomASWorldStaticTrans.geometryInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_NV;
-		vk_d.bottomASWorldStaticTrans.geometryInstance.flags |= VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
-		vk_d.bottomASWorldStaticTrans.geometryInstance.accelerationStructureHandle = vk_d.bottomASWorldStaticTrans.handle;
+		vk_d.bottomASWorldStaticTrans.geometryInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR;
+		vk_d.bottomASWorldStaticTrans.geometryInstance.flags |= VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+		vk_d.bottomASWorldStaticTrans.geometryInstance.accelerationStructureReference = vk_d.bottomASWorldStaticTrans.handle;
 
 		float tM[12];
 		tM[0] = 1; tM[1] = 0; tM[2] = 0; tM[3] = 0;
@@ -2957,9 +2957,9 @@ void R_PreparePT() {
 	}
 	// world dynamic data trans
 	{
-		vk_d.bottomASWorldDynamicDataTrans.geometries.sType = VK_STRUCTURE_TYPE_GEOMETRY_NV;
-		vk_d.bottomASWorldDynamicDataTrans.geometries.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_NV;
-		vk_d.bottomASWorldDynamicDataTrans.geometries.geometry.triangles.sType = VK_STRUCTURE_TYPE_GEOMETRY_TRIANGLES_NV;
+		vk_d.bottomASWorldDynamicDataTrans.geometries.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+		vk_d.bottomASWorldDynamicDataTrans.geometries.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+		vk_d.bottomASWorldDynamicDataTrans.geometries.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
 		vk_d.bottomASWorldDynamicDataTrans.geometries.geometry.triangles.vertexCount = offsetXYZdynamicData;
 		vk_d.bottomASWorldDynamicDataTrans.geometries.geometry.triangles.vertexStride = sizeof(VertexBuffer);
 		vk_d.bottomASWorldDynamicDataTrans.geometries.geometry.triangles.indexCount = offsetIDXdynamicData;
@@ -2969,23 +2969,23 @@ void R_PreparePT() {
 		}
 		vk_d.bottomASWorldDynamicDataTrans.geometries.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
 		vk_d.bottomASWorldDynamicDataTrans.geometries.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
-		vk_d.bottomASWorldDynamicDataTrans.geometries.geometry.aabbs.sType = VK_STRUCTURE_TYPE_GEOMETRY_AABB_NV;
+		vk_d.bottomASWorldDynamicDataTrans.geometries.geometry.aabbs.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR;
 		vk_d.bottomASWorldDynamicDataTrans.geometries.flags = 0;
 
 		VkCommandBuffer commandBuffer = { 0 };
 		VK_BeginSingleTimeCommands(&commandBuffer);
 		VK_CreateBottomAS(commandBuffer,
 			&vk_d.bottomASWorldDynamicDataTrans, &vk_d.basBufferWorldDynamicData,
-			&offsetDynamicDataWorld, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_NV);
+			&offsetDynamicDataWorld, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
 		VK_EndSingleTimeCommands(&commandBuffer);
 
 		vk_d.bottomASWorldDynamicDataTrans.data.type = BAS_WORLD_DYNAMIC_DATA;
 		vk_d.bottomASWorldDynamicDataTrans.geometryInstance.instanceCustomIndex = 0;
 		vk_d.bottomASWorldDynamicDataTrans.geometryInstance.instanceOffset = 1;
 		vk_d.bottomASWorldDynamicDataTrans.geometryInstance.mask = RAY_FIRST_PERSON_MIRROR_OPAQUE_VISIBLE;
-		vk_d.bottomASWorldDynamicDataTrans.geometryInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_NV;
-		vk_d.bottomASWorldDynamicDataTrans.geometryInstance.flags |= VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
-		vk_d.bottomASWorldDynamicDataTrans.geometryInstance.accelerationStructureHandle = vk_d.bottomASWorldDynamicDataTrans.handle;
+		vk_d.bottomASWorldDynamicDataTrans.geometryInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR;
+		vk_d.bottomASWorldDynamicDataTrans.geometryInstance.flags |= VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+		vk_d.bottomASWorldDynamicDataTrans.geometryInstance.accelerationStructureReference = vk_d.bottomASWorldDynamicDataTrans.handle;
 
 		float tM[12];
 		tM[0] = 1; tM[1] = 0; tM[2] = 0; tM[3] = 0;
@@ -2997,9 +2997,9 @@ void R_PreparePT() {
 	// world dynamic as trans
 	{
 		for (int i = 0; i < vk.swapchain.imageCount; i++) {
-			vk_d.bottomASWorldDynamicASTrans[i].geometries.sType = VK_STRUCTURE_TYPE_GEOMETRY_NV;
-			vk_d.bottomASWorldDynamicASTrans[i].geometries.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_NV;
-			vk_d.bottomASWorldDynamicASTrans[i].geometries.geometry.triangles.sType = VK_STRUCTURE_TYPE_GEOMETRY_TRIANGLES_NV;
+			vk_d.bottomASWorldDynamicASTrans[i].geometries.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+			vk_d.bottomASWorldDynamicASTrans[i].geometries.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+			vk_d.bottomASWorldDynamicASTrans[i].geometries.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
 			vk_d.bottomASWorldDynamicASTrans[i].geometries.geometry.triangles.vertexCount = offsetXYZdynamicAS;
 			vk_d.bottomASWorldDynamicASTrans[i].geometries.geometry.triangles.vertexStride = sizeof(VertexBuffer);
 			vk_d.bottomASWorldDynamicASTrans[i].geometries.geometry.triangles.indexCount = offsetIDXdynamicAS;
@@ -3009,23 +3009,23 @@ void R_PreparePT() {
 			}
 			vk_d.bottomASWorldDynamicASTrans[i].geometries.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
 			vk_d.bottomASWorldDynamicASTrans[i].geometries.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
-			vk_d.bottomASWorldDynamicASTrans[i].geometries.geometry.aabbs.sType = VK_STRUCTURE_TYPE_GEOMETRY_AABB_NV;
+			vk_d.bottomASWorldDynamicASTrans[i].geometries.geometry.aabbs.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_AABBS_DATA_KHR;
 			vk_d.bottomASWorldDynamicASTrans[i].geometries.flags = 0;
 
 			VkCommandBuffer commandBuffer = { 0 };
 			VK_BeginSingleTimeCommands(&commandBuffer);
 			VK_CreateBottomAS(commandBuffer,
 				&vk_d.bottomASWorldDynamicASTrans[i], &vk_d.basBufferWorldDynamicAS[i],
-				&offsetDynamicASWorld[i], VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV);
+				&offsetDynamicASWorld[i], VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR);
 			VK_EndSingleTimeCommands(&commandBuffer);
 
 			vk_d.bottomASWorldDynamicASTrans[i].data.type = BAS_WORLD_DYNAMIC_AS;
 			vk_d.bottomASWorldDynamicASTrans[i].geometryInstance.instanceCustomIndex = 0;
 			vk_d.bottomASWorldDynamicASTrans[i].geometryInstance.instanceOffset = 1;
 			vk_d.bottomASWorldDynamicASTrans[i].geometryInstance.mask = RAY_FIRST_PERSON_MIRROR_OPAQUE_VISIBLE;
-			vk_d.bottomASWorldDynamicASTrans[i].geometryInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_NV;
-			vk_d.bottomASWorldDynamicASTrans[i].geometryInstance.flags |= VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV;
-			vk_d.bottomASWorldDynamicASTrans[i].geometryInstance.accelerationStructureHandle = vk_d.bottomASWorldDynamicASTrans[i].handle;
+			vk_d.bottomASWorldDynamicASTrans[i].geometryInstance.flags = VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR;
+			vk_d.bottomASWorldDynamicASTrans[i].geometryInstance.flags |= VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+			vk_d.bottomASWorldDynamicASTrans[i].geometryInstance.accelerationStructureReference = vk_d.bottomASWorldDynamicASTrans[i].handle;
 
 			float tM[12];
 			tM[0] = 1; tM[1] = 0; tM[2] = 0; tM[3] = 0;
@@ -3151,7 +3151,7 @@ void R_PreparePT() {
 		VkCommandBuffer commandBuffer = { 0 };
 		VK_BeginSingleTimeCommands(&commandBuffer);
 		vk_d.scratchBufferOffset = 0;
-		VK_MakeTopAS(commandBuffer, &vk_d.topAS[i], &vk_d.topASBuffer[i], &vk_d.bottomASWorldStatic, 1, &vk_d.instanceBuffer[i], VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NV);
+		VK_MakeTopAS(commandBuffer, &vk_d.topAS[i], &vk_d.topASBuffer[i], &vk_d.bottomASWorldStatic, 1, &vk_d.instanceBuffer[i], VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR);
 		VK_EndSingleTimeCommands(&commandBuffer);
 	}
 	vk_d.scratchBufferOffset = 0;

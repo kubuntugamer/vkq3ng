@@ -3,21 +3,24 @@
 void VK_CreateAttributeBuffer(vkbuffer_t* buffer, VkDeviceSize allocSize, VkBufferUsageFlagBits usage) {
 	VkDeviceSize nCAS = vk.deviceProperties.limits.nonCoherentAtomSize;
 	buffer->allocSize = ((allocSize + (nCAS - 1)) / nCAS) * nCAS;
-	VK_CreateBufferMemory(buffer->allocSize, usage, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer->buffer, &buffer->memory);
+	VkBufferUsageFlags rtUsage = usage;
+	if (vk_raytracing_enabled)
+		rtUsage |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR;
+	VK_CreateBufferMemory(buffer->allocSize, rtUsage, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer->buffer, &buffer->memory);
 	VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (void**)&buffer->p), "failed to Map Memory!");
 }
 
 void VK_CreateVertexBuffer(vkbuffer_t *buffer, VkDeviceSize allocSize){
 	VkDeviceSize nCAS = vk.deviceProperties.limits.nonCoherentAtomSize;
 	buffer->allocSize = ((allocSize + (nCAS - 1)) / nCAS) * nCAS;
-	VK_CreateBufferMemory(buffer->allocSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer->buffer, &buffer->memory);
+	VK_CreateBufferMemory(buffer->allocSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | (vk_raytracing_enabled ? (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR) : 0), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer->buffer, &buffer->memory);
     VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (void**)&buffer->p), "failed to Map Memory!");
 }
 
 void VK_CreateIndexBuffer(vkbuffer_t *buffer, VkDeviceSize allocSize){
 	VkDeviceSize nCAS = vk.deviceProperties.limits.nonCoherentAtomSize;
 	buffer->allocSize = ((allocSize + (nCAS - 1)) / nCAS) * nCAS;
-	VK_CreateBufferMemory(buffer->allocSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer->buffer, &buffer->memory);
+	VK_CreateBufferMemory(buffer->allocSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | (vk_raytracing_enabled ? (VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR) : 0), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer->buffer, &buffer->memory);
     VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (void**)&buffer->p), "failed to Map Memory!");
 }
 
@@ -31,22 +34,22 @@ void VK_CreateUniformBuffer(vkbuffer_t* buffer, VkDeviceSize allocSize) {
 // RTX
 void VK_CreateRayTracingASBuffer(vkbuffer_t* buffer, VkDeviceSize allocSize) {
 	buffer->allocSize = allocSize;
-	VK_CreateBufferMemory(allocSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &buffer->buffer, &buffer->memory);
+	VK_CreateBufferMemory(allocSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &buffer->buffer, &buffer->memory);
 	buffer->onGpu = VK_TRUE;
 }
 void VK_CreateRayTracingBuffer(vkbuffer_t* buffer, VkDeviceSize allocSize) {
 	buffer->allocSize = allocSize;
-	VK_CreateBufferMemory(allocSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer->buffer, &buffer->memory);
+	VK_CreateBufferMemory(allocSize, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer->buffer, &buffer->memory);
 	VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (void**)&buffer->p), "failed to Map Memory!");
 }
 void VK_CreateRayTracingScratchBuffer(vkbuffer_t* buffer, VkDeviceSize allocSize) {
 	buffer->allocSize = allocSize;
-	VK_CreateBufferMemory(allocSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &buffer->buffer, &buffer->memory);
+	VK_CreateBufferMemory(allocSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &buffer->buffer, &buffer->memory);
 	buffer->onGpu = VK_TRUE;
 }
 void VK_CreateShaderBindingTableBuffer(vkbuffer_t* buffer, VkDeviceSize allocSize) {
 	buffer->allocSize = allocSize;
-	VK_CreateBufferMemory(allocSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &buffer->buffer, &buffer->memory);
+	VK_CreateBufferMemory(allocSize, VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &buffer->buffer, &buffer->memory);
 	VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (void**)&buffer->p), "failed to Map Memory!");
 }
 
@@ -108,3 +111,21 @@ void VK_DestroyBuffer(vkbuffer_t* buffer)
 //
 //}
 
+
+
+VkDeviceAddress VK_GetBufferDeviceAddress(vkbuffer_t* buffer) {
+	if (buffer->deviceAddress == 0 && buffer->buffer != VK_NULL_HANDLE) {
+		VkBufferDeviceAddressInfo info = { 0 };
+		info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+		info.buffer = buffer->buffer;
+		buffer->deviceAddress = vkGetBufferDeviceAddress(vk.device, &info);
+	}
+	return buffer->deviceAddress;
+}
+
+VkDeviceAddress VK_GetBufferDeviceAddressHandle(VkBuffer buffer) {
+	VkBufferDeviceAddressInfo info = { 0 };
+	info.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+	info.buffer = buffer;
+	return vkGetBufferDeviceAddress(vk.device, &info);
+}

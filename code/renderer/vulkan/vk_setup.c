@@ -11,7 +11,6 @@ vkdata_t     vk_d;
 static const char* deviceExtensions[] = {
 #if defined( _WIN32 ) || defined( __linux__ )
 		VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
-		VK_NV_RAY_TRACING_EXTENSION_NAME,
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
 		VK_KHR_MAINTENANCE3_EXTENSION_NAME,
 #endif
@@ -19,6 +18,15 @@ static const char* deviceExtensions[] = {
 		//VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
 #endif
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
+};
+
+static const char* rayTracingExtensions[] = {
+		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+		VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+		VK_KHR_SPIRV_1_4_EXTENSION_NAME,
+		VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME,
 };
 
 static const char* validationLayers[] = {
@@ -93,8 +101,8 @@ void VK_Destroy() {
 	vkDeviceWaitIdle(vk.device);
 
 	VK_NGX_Shutdown(vk.device);
-	VK_DestroySwapchain();
 	VK_Reflex_Shutdown(vk.device);
+	VK_DestroySwapchain();
 
 	vkDestroyQueryPool(vk.device, vk.queryPool, NULL);
 	vkDestroyCommandPool(vk.device, vk.commandPool, NULL);
@@ -154,7 +162,7 @@ static void VK_CreateInstance() {
 			.applicationVersion = VK_MAKE_VERSION(1, 0, 0),
 			.pEngineName = "q3pt",
 			.engineVersion = VK_MAKE_VERSION(1, 0, 0),
-			.apiVersion = VK_API_VERSION_1_1,
+			.apiVersion = VK_API_VERSION_1_2,
 		};
 
 		VkInstanceCreateInfo desc = { 0 };
@@ -289,8 +297,10 @@ static void VK_PickPhysicalDevice()
 	vkGetPhysicalDeviceProperties(vk.physicalDevice, &vk.deviceProperties);
 	ri.Printf(PRINT_ALL, "Vulkan: using %s\n", vk.deviceProperties.deviceName);
 
-	// rtx properties
-	vk.rayTracingProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PROPERTIES_NV;
+	// KHR ray-tracing properties
+	vk.rayTracingProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR;
+	vk.accelerationStructureProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_PROPERTIES_KHR;
+	vk.rayTracingProperties.pNext = &vk.accelerationStructureProperties;
 	vk.deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 	vk.deviceProperties2.pNext = vk_raytracing_enabled ? &vk.rayTracingProperties : NULL;
 	vkGetPhysicalDeviceProperties2(vk.physicalDevice, &vk.deviceProperties2);
@@ -328,6 +338,7 @@ static void VK_CreateLogicalDevice()
 	deviceFeatures.multiDrawIndirect = qfalse;
 	deviceFeatures.drawIndirectFirstInstance = qfalse;
 	deviceFeatures.shaderClipDistance = qtrue;
+	deviceFeatures.shaderStorageImageWriteWithoutFormat = qtrue;
 
 	VkPhysicalDeviceDescriptorIndexingFeaturesEXT indexingFeatures = { 0 };
 	indexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
@@ -366,7 +377,15 @@ static void VK_CreateLogicalDevice()
 
 	VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures = { 0 };
 	bufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
-	bufferDeviceAddressFeatures.bufferDeviceAddress = ngxExtensions ? VK_TRUE : VK_FALSE;
+	bufferDeviceAddressFeatures.bufferDeviceAddress = (ngxExtensions || vk_raytracing_enabled) ? VK_TRUE : VK_FALSE;
+
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures = { 0 };
+	accelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+	accelerationStructureFeatures.accelerationStructure = vk_raytracing_enabled ? VK_TRUE : VK_FALSE;
+
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rayTracingPipelineFeatures = { 0 };
+	rayTracingPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+	rayTracingPipelineFeatures.rayTracingPipeline = vk_raytracing_enabled ? VK_TRUE : VK_FALSE;
 
 	VkPhysicalDevicePresentIdFeaturesKHR presentIdFeatures = { 0 };
 	presentIdFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
@@ -378,6 +397,7 @@ static void VK_CreateLogicalDevice()
 
 	VkPhysicalDeviceFeatures2 device_features = { 0 };
 	device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR;
+	device_features.features = deviceFeatures;
 	device_features.pNext = &indexingFeatures;
 	if (lowLatencyExtensions) {
 		timelineFeatures.pNext = device_features.pNext;
@@ -385,9 +405,15 @@ static void VK_CreateLogicalDevice()
 		presentIdFeatures.pNext = device_features.pNext;
 		device_features.pNext = &presentIdFeatures;
 	}
-	if (ngxExtensions) {
+	if (ngxExtensions || vk_raytracing_enabled) {
 		bufferDeviceAddressFeatures.pNext = device_features.pNext;
 		device_features.pNext = &bufferDeviceAddressFeatures;
+	}
+	if (vk_raytracing_enabled) {
+		accelerationStructureFeatures.pNext = device_features.pNext;
+		device_features.pNext = &accelerationStructureFeatures;
+		rayTracingPipelineFeatures.pNext = device_features.pNext;
+		device_features.pNext = &rayTracingPipelineFeatures;
 	}
 
 	VkDeviceCreateInfo desc = { 0 };
@@ -396,21 +422,25 @@ static void VK_CreateLogicalDevice()
 	desc.queueCreateInfoCount = queueCreateInfosCount;
 	desc.pQueueCreateInfos = &queueCreateInfos[0];
 
-	desc.pEnabledFeatures = &deviceFeatures;
+	desc.pEnabledFeatures = NULL;
 
 	{
-		const char* enabledExtensions[16];
+		const char* enabledExtensions[24];
 		uint32_t enabledExtensionCount = 0;
 		for (uint32_t i = 0; i < (sizeof(deviceExtensions) / sizeof(deviceExtensions[0])); i++) {
-			if (!vk_raytracing_enabled && !strcmp(deviceExtensions[i], VK_NV_RAY_TRACING_EXTENSION_NAME))
-				continue;
 			enabledExtensions[enabledExtensionCount++] = deviceExtensions[i];
+		}
+		if (vk_raytracing_enabled) {
+			for (uint32_t i = 0; i < (sizeof(rayTracingExtensions) / sizeof(rayTracingExtensions[0])); i++) {
+				enabledExtensions[enabledExtensionCount++] = rayTracingExtensions[i];
+			}
 		}
 		if (ngxExtensions) {
 			enabledExtensions[enabledExtensionCount++] = VK_NVX_BINARY_IMPORT_EXTENSION_NAME;
 			enabledExtensions[enabledExtensionCount++] = VK_NVX_IMAGE_VIEW_HANDLE_EXTENSION_NAME;
-			enabledExtensions[enabledExtensionCount++] = VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME;
 			enabledExtensions[enabledExtensionCount++] = VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME;
+			if (!vk_raytracing_enabled)
+				enabledExtensions[enabledExtensionCount++] = VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME;
 		}
 		if (lowLatencyExtensions) {
 			enabledExtensions[enabledExtensionCount++] = VK_NV_LOW_LATENCY_2_EXTENSION_NAME;
@@ -420,6 +450,9 @@ static void VK_CreateLogicalDevice()
 		desc.enabledExtensionCount = enabledExtensionCount;
 		desc.ppEnabledExtensionNames = enabledExtensions;
 		VK_CHECK(vkCreateDevice(vk.physicalDevice, &desc, NULL, &vk.device), "failed to create logical device!")
+		if (vk_raytracing_enabled) {
+			ri.Printf(PRINT_ALL, "Vulkan: KHR ray tracing pipeline enabled\n");
+		}
 	}
 }
 
@@ -558,6 +591,15 @@ static vkqueueFamilyIndices_t VK_FindQueueFamilies(VkPhysicalDevice device, VkSu
 	return indices;
 }
 
+static qboolean VK_HasExtension(const VkExtensionProperties* available, uint32_t count, const char* name)
+{
+	for (uint32_t i = 0; i < count; i++) {
+		if (!strcmp(available[i].extensionName, name))
+			return qtrue;
+	}
+	return qfalse;
+}
+
 static qboolean VK_CheckDeviceExtensionSupport(VkPhysicalDevice device) {
 	uint32_t extensionCount = 0;
 	vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, NULL);
@@ -565,18 +607,18 @@ static qboolean VK_CheckDeviceExtensionSupport(VkPhysicalDevice device) {
 	vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, &availableExtensions[0]);
 
 	for (int i = 0; i < (sizeof(deviceExtensions) / sizeof(deviceExtensions[0])); i++) {
-		qboolean supported = qfalse;
-		if (!vk_raytracing_requested && !strcmp(deviceExtensions[i], VK_NV_RAY_TRACING_EXTENSION_NAME))
-			continue;
-		for (int j = 0; j < extensionCount; j++) {
-			if (!strcmp(availableExtensions[j].extensionName, deviceExtensions[i])) {
-				supported = qtrue;
-				break;
-			}
-		}
-		if (!supported) {
+		if (!VK_HasExtension(availableExtensions, extensionCount, deviceExtensions[i])) {
 			free(availableExtensions);
 			return qfalse;
+		}
+	}
+
+	if (vk_raytracing_requested) {
+		for (int i = 0; i < (sizeof(rayTracingExtensions) / sizeof(rayTracingExtensions[0])); i++) {
+			if (!VK_HasExtension(availableExtensions, extensionCount, rayTracingExtensions[i])) {
+				free(availableExtensions);
+				return qfalse;
+			}
 		}
 	}
 
@@ -584,10 +626,34 @@ static qboolean VK_CheckDeviceExtensionSupport(VkPhysicalDevice device) {
 	return qtrue;
 }
 
+static qboolean VK_CheckRayTracingFeatures(VkPhysicalDevice device)
+{
+	if (!vk_raytracing_requested)
+		return qtrue;
+
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR accelerationStructureFeatures = { 0 };
+	accelerationStructureFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR;
+	VkPhysicalDeviceRayTracingPipelineFeaturesKHR rayTracingPipelineFeatures = { 0 };
+	rayTracingPipelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR;
+	VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures = { 0 };
+	bufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
+	VkPhysicalDeviceFeatures2 features = { 0 };
+	features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+	features.pNext = &accelerationStructureFeatures;
+	accelerationStructureFeatures.pNext = &rayTracingPipelineFeatures;
+	rayTracingPipelineFeatures.pNext = &bufferDeviceAddressFeatures;
+	vkGetPhysicalDeviceFeatures2(device, &features);
+
+	return accelerationStructureFeatures.accelerationStructure &&
+		rayTracingPipelineFeatures.rayTracingPipeline &&
+		bufferDeviceAddressFeatures.bufferDeviceAddress;
+}
+
 static qboolean VK_IsDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface) {
 	vkqueueFamilyIndices_t queueFamilyIndices = VK_FindQueueFamilies(device, surface);
 
 	qboolean extensionsSupported = VK_CheckDeviceExtensionSupport(device);
+	qboolean rayTracingFeatures = extensionsSupported && VK_CheckRayTracingFeatures(device);
 
 	qboolean swapChainAdequate = qfalse;
 	if (extensionsSupported) {
@@ -600,6 +666,7 @@ static qboolean VK_IsDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surfac
 	if (queueFamilyIndices.graphicsFamily >= 0 &&
 		queueFamilyIndices.presentFamily >= 0 &&
 		extensionsSupported &&
+		rayTracingFeatures &&
 		swapChainAdequate)
 	{
 		Com_Memcpy(&vk.queryFamilyIndices, &queueFamilyIndices, sizeof(vkqueueFamilyIndices_t));
