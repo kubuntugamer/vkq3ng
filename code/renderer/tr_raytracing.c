@@ -1,6 +1,9 @@
 #include "tr_local.h"
 #include "vulkan/vk_ngx.h"
+#include "vulkan/vk_fsr2.h"
 #include "../../shader/glsl/constants.h"
+
+static void RB_FSR2CopyImage(VkCommandBuffer cmd, vkimage_t *src, vkimage_t *dst, uint32_t width, uint32_t height);
 
 /*
 glConfig.driverType == VULKAN && r_vertexLight->value == 2
@@ -1012,7 +1015,7 @@ static void RB_TraceRays() {
 
 	BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.gBuffer[vk.swapchain.currentImage].transparent.handle);
 	BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.gBuffer[vk.swapchain.currentImage].viewDir.handle);
-	qboolean tonemap = (rt_tonemapping_reinhard->value == 1) || VK_NGX_Active();
+	qboolean tonemap = (rt_tonemapping_reinhard->value == 1) || VK_NGX_Active() || VK_FSR2_Active();
 	if (tonemap) {
 		BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].taa.handle);
 		for (uint32_t i = 0; i < vk_d.mipmapLevel; i++) {
@@ -1052,6 +1055,59 @@ static void RB_TraceRays() {
 		vkCmdPipelineBarrier(vk.swapchain.CurrentCommandBuffer(),
 			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
 			0, 1, &ngxBarrier, 0, NULL, 0, NULL);
+	}
+
+	if (VK_FSR2_Active()) {
+		VkCommandBuffer fsr2Cmd = vk.swapchain.CurrentCommandBuffer();
+		int image = vk.swapchain.currentImage;
+
+		RB_FSR2CopyImage(fsr2Cmd, &vk_d.gBuffer[image].result,
+			&vk_d.fsr2Color[image], vk.renderExtent.width, vk.renderExtent.height);
+		RB_FSR2CopyImage(fsr2Cmd, &vk_d.gBuffer[image].depthNormal,
+			&vk_d.fsr2Depth[image], vk.renderExtent.width, vk.renderExtent.height);
+		RB_FSR2CopyImage(fsr2Cmd, &vk_d.gBuffer[image].motion,
+			&vk_d.fsr2Motion[image], vk.renderExtent.width, vk.renderExtent.height);
+
+		static int fsr2LastTime = 0;
+		static int fsr2LastScene = -1;
+		int now = Sys_Milliseconds();
+		float frameMs = 16.666f;
+		if (fsr2LastTime && now > fsr2LastTime && (now - fsr2LastTime) < 250)
+			frameMs = (float)(now - fsr2LastTime);
+		fsr2LastTime = now;
+
+		qboolean fsr2Reset = dlssReset || (fsr2LastScene != tr.frameSceneNum);
+		fsr2LastScene = tr.frameSceneNum;
+
+		float fovY = tr.refdef.fov_y > 1.0f
+			? tr.refdef.fov_y * (float)(M_PI / 180.0)
+			: (float)(60.0 * M_PI / 180.0);
+		float zFar = backEnd.viewParms.zFar > 0.0f ? backEnd.viewParms.zFar : 4096.0f;
+
+		if (VK_FSR2_Evaluate(fsr2Cmd,
+				vk_d.fsr2Color[image].handle, vk_d.fsr2Color[image].view, VK_FORMAT_R32G32B32A32_SFLOAT,
+				vk_d.fsr2Depth[image].handle, vk_d.fsr2Depth[image].view, VK_FORMAT_R32G32_SFLOAT,
+				vk_d.fsr2Motion[image].handle, vk_d.fsr2Motion[image].view, VK_FORMAT_R16G16B16A16_SFLOAT,
+				vk_d.accelerationStructures.dlssOutput[image].handle,
+				vk_d.accelerationStructures.dlssOutput[image].view, VK_FORMAT_R16G16B16A16_SFLOAT,
+				vk.renderExtent.width, vk.renderExtent.height,
+				vk.renderMaxExtent.width, vk.renderMaxExtent.height,
+				fsr2Reset, 0.0f, 0.0f, frameMs, r_znear->value, zFar, fovY)) {
+			/* FSR2 transitions its inputs to SHADER_READ_ONLY.  Put them back
+			 * into GENERAL so the RT compute shaders can write them next frame. */
+			vkimage_t *inputs[3] = {
+				&vk_d.fsr2Color[image], &vk_d.fsr2Depth[image], &vk_d.fsr2Motion[image]
+			};
+			for (int i = 0; i < 3; i++) {
+				IMAGE_BARRIER(fsr2Cmd,
+					.image = inputs[i]->handle,
+					.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
+					.srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+					.dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+					.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+					.newLayout = VK_IMAGE_LAYOUT_GENERAL);
+			}
+		}
 	}
 
 }
@@ -1130,6 +1186,39 @@ static void drawCluster() {
 	
 }
 
+static void RB_FSR2CopyImage(VkCommandBuffer cmd, vkimage_t *src, vkimage_t *dst, uint32_t width, uint32_t height) {
+	VkImageSubresourceLayers subresource = {
+		.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+		.mipLevel = 0,
+		.baseArrayLayer = 0,
+		.layerCount = 1
+	};
+	VkImageCopy region = {
+		.srcSubresource = subresource,
+		.dstSubresource = subresource,
+		.extent = { width, height, 1 }
+	};
+
+	IMAGE_BARRIER(cmd,
+		.image = src->handle,
+		.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
+		.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+		.newLayout = VK_IMAGE_LAYOUT_GENERAL);
+
+	vkCmdCopyImage(cmd, src->handle, VK_IMAGE_LAYOUT_GENERAL,
+		dst->handle, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+
+	IMAGE_BARRIER(cmd,
+		.image = dst->handle,
+		.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
+		.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+		.dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+		.oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+		.newLayout = VK_IMAGE_LAYOUT_GENERAL);
+}
+
 void RB_RayTraceScene(drawSurf_t* drawSurfs, int numDrawSurfs) {
 	VkMemoryBarrier memoryBarrier = { 0 };
 	vkCmdEndRenderPass(vk.swapchain.CurrentCommandBuffer());
@@ -1179,7 +1268,7 @@ void RB_RayTraceScene(drawSurf_t* drawSurfs, int numDrawSurfs) {
 	//vkimage_t* drawImage = &vk_d.asvgf[vk.swapchain.currentImage].debug;
 	//vkimage_t* drawImage = &vk_d.asvgf[vk.swapchain.currentImage].atrousA;
 	uint32_t drawWidth, drawHeight;
-	if (VK_NGX_Active()) {
+	if (VK_NGX_Active() || VK_FSR2_Active()) {
 		drawImage = &vk_d.accelerationStructures.dlssOutput[vk.swapchain.currentImage];
 		drawWidth = vk.renderMaxExtent.width;
 		drawHeight = vk.renderMaxExtent.height;

@@ -20,6 +20,8 @@ It still uses your own Quake III Arena data files. No game assets are included.
   `VK_KHR_ray_tracing_pipeline`, and `VK_KHR_buffer_device_address` — not
   `VK_NV_ray_tracing`.
 - **NVIDIA DLSS** when the driver-provided NGX DLSS runtime is available.
+- **AMD FidelityFX Super Resolution 2 (FSR2)** as the cross-vendor temporal upscaler,
+  with no extra runtime dependency.
 - **NVIDIA Reflex + Boost** through `VK_NV_low_latency2`, with graceful fallback elsewhere.
 - **Adaptive internal resolution** with frame-time feedback, plus EASU (FSR1 spatial)
   upscaling as a vendor-neutral fallback.
@@ -77,7 +79,9 @@ If the device does not expose the KHR ray-tracing set, the renderer automaticall
 back to raster Vulkan.
 
 DLSS is NVIDIA-only and requires the NGX DLSS runtime installed by the NVIDIA driver.
-The renderer does not redistribute it; without it, DLSS is skipped and EASU is used.
+The renderer does not redistribute it; without it, DLSS is skipped and FSR2 is used.
+FSR2 is compiled into the renderer and works on any Vulkan 1.2 device with the KHR ray-tracing
+extensions, including AMD and Intel GPUs.
 Reflex likewise requires `VK_NV_low_latency2` and falls back cleanly when absent.
 
 ## Build
@@ -214,6 +218,7 @@ A typical RTX launch with all optional features enabled:
 |---|---:|---|
 | `r_vertexLight` | `0` | `0` = raster/legacy lighting, `2` = RTX path tracing |
 | `r_dlss` | `1` | Use DLSS when the NGX DLSS runtime is available |
+| `r_fsr2` | `1` | Use FSR2 when DLSS is unavailable |
 | `r_upscaler` | `1` | `1` = EASU (FSR1 spatial), `0` = bilinear |
 | `r_rtxAdaptive` | `1` | Adapt internal render resolution to frame time |
 | `r_rtxMaxPixels` | `0` | Auto pixel ceiling; `0` lets the renderer choose |
@@ -224,8 +229,9 @@ A typical RTX launch with all optional features enabled:
 | `s_initsound` | `1` | Enable sound |
 | `snddevice` | `pipewire` | Audio backend name on Linux |
 
-If DLSS is active it takes over from the adaptive/EASU path. If Reflex or DLSS is not
-available, those features are skipped without disabling the renderer.
+DLSS takes priority when it is available; otherwise FSR2 is selected. If neither temporal
+upscaler is active, adaptive resolution plus EASU remains the fallback. Reflex is skipped
+without disabling the renderer when `VK_NV_low_latency2` is unavailable.
 
 ## Multi-GPU / headless RTX
 
@@ -282,7 +288,9 @@ The zone allocator now grows in segments; no extra cvar is required. Make sure t
 ## Asset and source licensing
 
 The engine source is derived from id Software's GPL Quake III Arena release. See `COPYING`
-and the licenses of the bundled third-party libraries.
+and the licenses of the bundled third-party libraries. The FSR2 backend and its generated
+Vulkan shader blobs are derived from AMD FidelityFX FSR2 2.2.1 under the MIT license; see
+`code/renderer/fsr2/LICENSE.txt`.
 
 Quake III Arena game data, `q3key`, and third-party HD texture packs are **not** part of
 this repository. They remain the property of their respective owners and must be obtained

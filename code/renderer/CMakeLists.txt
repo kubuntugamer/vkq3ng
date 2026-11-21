@@ -41,5 +41,8 @@ if(UNIX AND NOT APPLE)
     # NVIDIA NGX loader shim (dlopen()s the installed driver library at runtime).
     target_include_directories(${LIB_RENDERER} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/vulkan/ngx/include")
     target_link_libraries(${LIB_RENDERER} "${CMAKE_CURRENT_SOURCE_DIR}/vulkan/ngx/lib/Linux_x86_64/libnvsdk_ngx.a" dl stdc++)
+    # AMD FidelityFX FSR2 is C++ and uses the portable (non-MSVC) path.
+    target_compile_definitions(${LIB_RENDERER} PRIVATE FFX_GCC=1)
+    set_target_properties(${LIB_RENDERER} PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 endif()
 set_target_properties(${LIB_RENDERER} PROPERTIES LINKER_LANGUAGE C)

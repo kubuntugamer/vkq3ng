@@ -1574,6 +1574,14 @@ typedef struct {
 	viewParms_t			mirrorViewParms;
 	
 	vkaccelerationStructures_t accelerationStructures;
+
+	/* FSR2 inputs copied from the RT G-buffers at the exact render size;
+	 * FSR2 samples normalized UVs and cannot use a larger allocation with a
+	 * sub-rectangle. */
+	vkimage_t			fsr2Color[VK_MAX_SWAPCHAIN_SIZE];
+	vkimage_t			fsr2Depth[VK_MAX_SWAPCHAIN_SIZE];
+	vkimage_t			fsr2Motion[VK_MAX_SWAPCHAIN_SIZE];
+
 	vkdescriptor_t		rtxDescriptor[VK_MAX_SWAPCHAIN_SIZE];
 	vkdescriptor_t		computeDescriptor[VK_MAX_SWAPCHAIN_SIZE];
 

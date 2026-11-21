@@ -23,6 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "tr_local.h"
 #include "vulkan/vk_ngx.h"
+#include "vulkan/vk_fsr2.h"
 
 glconfig_t	glConfig;
 glstate_t	glState;
@@ -174,6 +175,7 @@ cvar_t* r_upscaler;
 cvar_t* r_rtxAdaptive;
 cvar_t* r_rtxMaxPixels;
 cvar_t* r_dlss;
+cvar_t* r_fsr2;
 cvar_t* r_reflex;
 cvar_t* r_reflexBoost;
 cvar_t* rt_aperture;
@@ -298,6 +300,7 @@ static void InitVulkan(void)
 
 			vk.renderExtent = vk.renderMaxExtent;
 			qboolean dlssReady = qfalse;
+			qboolean fsr2Ready = qfalse;
 			if (r_dlss && r_dlss->integer && VK_NGX_Init(vk.instance, vk.physicalDevice, vk.device)) {
 				/* DLSS does the upscaling itself.  Render at a fixed 2/3 scale
 				 * (DLSS Quality) instead of running adaptive resolution. */
@@ -309,7 +312,22 @@ static void InitVulkan(void)
 				ri.Printf(PRINT_ALL, "RTX: DLSS quality, render %ux%u -> %ux%u\n",
 				          vk.renderExtent.width, vk.renderExtent.height,
 				          vk.renderMaxExtent.width, vk.renderMaxExtent.height);
-			} else if (r_rtxAdaptive && r_rtxAdaptive->integer) {
+			} else if (r_fsr2 && r_fsr2->integer &&
+			           VK_FSR2_Init(vk.instance, vk.physicalDevice, vk.device, vkGetInstanceProcAddr, vkGetDeviceProcAddr)) {
+				/* FSR2 is the cross-vendor temporal upscaler.  Use the same
+				 * 2/3 quality scale as DLSS so the RT workload stays stable. */
+				uint32_t w = max(320u, (vk.renderMaxExtent.width * 2 / 3)) & ~1u;
+				uint32_t h = max(180u, (vk.renderMaxExtent.height * 2 / 3)) & ~1u;
+				if (VK_FSR2_Create(w, h, vk.renderMaxExtent.width, vk.renderMaxExtent.height)) {
+					vk.renderExtent.width = w;
+					vk.renderExtent.height = h;
+					fsr2Ready = qtrue;
+					ri.Printf(PRINT_ALL, "RTX: FSR2 quality, render %ux%u -> %ux%u\n",
+					          vk.renderExtent.width, vk.renderExtent.height,
+					          vk.renderMaxExtent.width, vk.renderMaxExtent.height);
+				}
+			}
+			if (!dlssReady && !fsr2Ready && r_rtxAdaptive && r_rtxAdaptive->integer) {
 				uint32_t w = max(320u, (vk.renderMaxExtent.width + 3) / 4) & ~1u;
 				uint32_t h = max(180u, (vk.renderMaxExtent.height + 3) / 4) & ~1u;
 				vk.renderExtent.width = w;
@@ -318,13 +336,13 @@ static void InitVulkan(void)
 			vk.renderExtentChanged = qtrue;
 
 			ri.Printf(PRINT_ALL, "RTX: adaptive %s, buffer %ux%u, output %ux%u\n",
-			          dlssReady ? "off (DLSS)" : ((r_rtxAdaptive && r_rtxAdaptive->integer) ? "on" : "off"),
+			          dlssReady ? "off (DLSS)" : (fsr2Ready ? "off (FSR2)" : ((r_rtxAdaptive && r_rtxAdaptive->integer) ? "on" : "off")),
 			          vk.renderMaxExtent.width, vk.renderMaxExtent.height,
 			          vk.swapchain.extent.width, vk.swapchain.extent.height);
 			ri.Printf(PRINT_ALL, "RTX: starting at %ux%u\n", vk.renderExtent.width, vk.renderExtent.height);
 			ri.Printf(PRINT_ALL, "RTX: upscaler %s\n",
-			          dlssReady ? "DLSS" :
-			          ((r_upscaler && r_upscaler->integer) ? "EASU (FSR1 spatial)" : "bilinear"));
+			          dlssReady ? "DLSS" : (fsr2Ready ? "FSR2" :
+			          ((r_upscaler && r_upscaler->integer) ? "EASU (FSR1 spatial)" : "bilinear")));
 			ri.Printf(PRINT_ALL, "RTX: aa %s, denoiser %s, taa %s, soft shadows %s\n",
 			          rt_antialiasing->integer ? "on" : "off",
 			          rt_denoiser->integer ? "on" : "off",
@@ -403,6 +421,16 @@ static void InitVulkan(void)
 				VK_CreateImage(&vk_d.gBuffer[i].result, vk.renderMaxExtent.width, vk.renderMaxExtent.height, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 1);
 				VK_CreateSampler(&vk_d.gBuffer[i].result, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 				VK_TransitionImage(&vk_d.gBuffer[i].result, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+
+				if (VK_FSR2_Active()) {
+					/* FSR2 needs its inputs at exactly the render size. */
+					VK_CreateImage(&vk_d.fsr2Color[i], vk.renderExtent.width, vk.renderExtent.height, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 1);
+					VK_TransitionImage(&vk_d.fsr2Color[i], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+					VK_CreateImage(&vk_d.fsr2Depth[i], vk.renderExtent.width, vk.renderExtent.height, VK_FORMAT_R32G32_SFLOAT, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 1);
+					VK_TransitionImage(&vk_d.fsr2Depth[i], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+					VK_CreateImage(&vk_d.fsr2Motion[i], vk.renderExtent.width, vk.renderExtent.height, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 1);
+					VK_TransitionImage(&vk_d.fsr2Motion[i], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
+				}
 
 				// asvgf
 				VK_CreateImage(&vk_d.asvgf[i].debug, vk.renderMaxExtent.width, vk.renderMaxExtent.height, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 1);
@@ -1492,6 +1520,7 @@ void R_Register( void )
 	rt_softshadows = ri.Cvar_Get("rt_softshadows", "1", 0);
 	rt_taa = ri.Cvar_Get("rt_taa", "1", 0);
 	r_dlss = ri.Cvar_Get("r_dlss", "1", CVAR_ARCHIVE);
+	r_fsr2 = ri.Cvar_Get("r_fsr2", "1", CVAR_ARCHIVE);
 	r_reflex = ri.Cvar_Get("r_reflex", "1", CVAR_ARCHIVE);
 	r_reflexBoost = ri.Cvar_Get("r_reflexBoost", "1", CVAR_ARCHIVE);
 	r_rtxMaxPixels = ri.Cvar_Get("r_rtxMaxPixels", "0", CVAR_ARCHIVE);
@@ -1790,6 +1819,9 @@ void RE_Shutdown( qboolean destroyWindow ) {
 				VK_DestroyImage(&vk_d.accelerationStructures.resultImage[i]);
 				VK_DestroyImage(&vk_d.accelerationStructures.dlssOutput[i]);
 				VK_DestroyImage(&vk_d.accelerationStructures.accumulationImage[i]);
+				if (vk_d.fsr2Color[i].handle) VK_DestroyImage(&vk_d.fsr2Color[i]);
+				if (vk_d.fsr2Depth[i].handle) VK_DestroyImage(&vk_d.fsr2Depth[i]);
+				if (vk_d.fsr2Motion[i].handle) VK_DestroyImage(&vk_d.fsr2Motion[i]);
 			}
 			VK_DestroyBuffer(&vk_d.scratchBuffer);
 			VK_DestroyImage(&vk_d.blueNoiseTex);

@@ -1,5 +1,6 @@
 #include "../tr_local.h"
 #include "vk_ngx.h"
+#include "vk_fsr2.h"
 
 uint32_t VK_FindMemoryTypeIndex(uint32_t memoryTypeBits, VkMemoryPropertyFlags properties);
 uint32_t VK_DeviceLocalMemoryIndex(void);
@@ -216,6 +217,8 @@ void VK_AdaptiveResolutionTick(void) {
 	if (!r_rtxAdaptive || !r_rtxAdaptive->integer || !vk_raytracing_enabled)
 		return;
 	if (VK_NGX_Active())
+		return;
+	if (VK_FSR2_Active())
 		return;
 	if (vk.renderMaxExtent.width == 0 || vk.renderMaxExtent.height == 0)
 		return;

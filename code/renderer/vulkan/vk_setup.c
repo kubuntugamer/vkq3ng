@@ -1,6 +1,7 @@
 
 #include "../tr_local.h"
 #include "vk_ngx.h"
+#include "vk_fsr2.h"
 #include "vk_reflex.h"
 #include <stdlib.h>
 #include <string.h>
@@ -100,6 +101,7 @@ qboolean VK_Setup(void* p1, void* p2) {
 void VK_Destroy() {
 	vkDeviceWaitIdle(vk.device);
 
+	VK_FSR2_Shutdown(vk.device);
 	VK_NGX_Shutdown(vk.device);
 	VK_Reflex_Shutdown(vk.device);
 	VK_DestroySwapchain();
