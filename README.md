@@ -81,7 +81,8 @@ back to raster Vulkan.
 DLSS is NVIDIA-only and requires the NGX DLSS runtime installed by the NVIDIA driver.
 The renderer does not redistribute it; without it, DLSS is skipped and FSR2 is used.
 FSR2 is compiled into the renderer and works on any Vulkan 1.2 device with the KHR ray-tracing
-extensions, including AMD and Intel GPUs.
+extensions, including AMD and Intel GPUs. XeSS is not available on Linux because Intel ships
+only D3D12/D3D11 binaries, with no Vulkan/Linux runtime.
 Reflex likewise requires `VK_NV_low_latency2` and falls back cleanly when absent.
 
 ## Build
