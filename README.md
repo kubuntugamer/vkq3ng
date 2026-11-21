@@ -105,7 +105,9 @@ The UI, cgame, and game modules are built alongside it in `bin/`.
 ## Game data
 
 This repository contains source code only. You must provide your own Quake III Arena
-installation (Steam, GOG, or original CD).
+installation, or buy the game from
+[Steam](https://store.steampowered.com/app/2200/Quake_III_Arena/) or
+[GOG](https://www.gog.com/en/game/quake_iii_gold).
 
 A minimal layout looks like this:
 
@@ -128,12 +130,28 @@ Copy the repository's `blue_noise_textures` directory into `baseq3`:
 cp -r blue_noise_textures /path/to/Quake3/baseq3/
 ```
 
-The RTX renderer needs those textures. Place your own `q3key` in `baseq3/` as well; it is
-the same file used by the original game.
+The RTX renderer needs those textures. They are CC0; the original set is published at
+[Blue Noise Textures](https://momentsingraphics.de/BlueNoise.html). Place your own `q3key`
+in `baseq3/` as well; it is the same file used by the original game.
 
-Optional HD texture packs are loaded as additional `.pk3` files in `baseq3`. They are not
-included here because their licenses are separate from the GPL source code. The rewritten
-zone allocator grows on demand, so large packs that exceed the original 16 MB zone can load.
+### Optional HD texture packs
+
+These are loaded as additional `.pk3` files in `baseq3`. They are **not** bundled here
+because their licenses are separate from the GPL source code. Download them from their
+authors and follow the terms on those pages:
+
+| Pack | Link | Notes |
+|---|---|---|
+| Q3Q HD Upscale 3x | [GitHub release](https://github.com/Dteyn/Q3Q_HD_Textures/releases/tag/v0.3-beta) | AI upscale with RealESRGAN Vulkan; keeps the original look |
+| Runo HD Textures | [ModDB](https://www.moddb.com/mods/quake-iii-arena-remastered-runo-edition/addons/runo-hd-textures) | Hand-modified Quake Live-style textures, skies, and some models |
+| XCSV HiRes | [ioquake3 replacement content](https://ioquake3.org/extras/replacement_content/) | Classic hand-made pack; CC BY-NC-ND 3.0 |
+| Quake 3 Neural Upscale | [ModDB](https://www.moddb.com/mods/quake-3-neural-upscale/addons) | Very high-resolution AI upscale; split across several `.pk3` files |
+
+Download the `.pk3` files and place them in `baseq3`. Do not commit them to this repository.
+Their availability and licensing are controlled by their authors, not by this project.
+
+The rewritten zone allocator grows on demand, so large packs that exceed the original
+16 MB zone can load.
 
 ## Running
 
