@@ -176,7 +176,9 @@
 #define NUM_BLUE_NOISE_TEX							(128)
 #define BLUE_NOISE_RES								(256)
 
+#ifndef UINT_MAX
 #define UINT_MAX                                    0xffffffff
+#endif
 #define UINT_TOP_16BITS_MASK                        0xffff0000
 #define UINT_BOTTOM_16BITS_MASK                     0x0000ffff
 

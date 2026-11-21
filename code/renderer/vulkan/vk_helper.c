@@ -1,4 +1,8 @@
 #include "../tr_local.h"
+#include "vk_ngx.h"
+
+uint32_t VK_FindMemoryTypeIndex(uint32_t memoryTypeBits, VkMemoryPropertyFlags properties);
+uint32_t VK_DeviceLocalMemoryIndex(void);
 
 static void VK_BufferMemoryBarrier(VkCommandBuffer cb, VkBuffer* buffer,
 	VkPipelineStageFlags srcStages, VkPipelineStageFlags dstStages,
@@ -39,7 +43,7 @@ void VK_BeginRenderClear()
 	rpBeginInfo.renderArea.extent.width = vk.swapchain.extent.width;
 	rpBeginInfo.renderArea.extent.height = vk.swapchain.extent.height;
 	rpBeginInfo.clearValueCount = 2;//m_window->sampleCountFlagBits() > VK_SAMPLE_COUNT_1_BIT ? 3 : 2;
-	rpBeginInfo.pClearValues = &clearValues;
+	rpBeginInfo.pClearValues = &clearValues[0];
 
 	VkCommandBuffer cmdBuf = vk.swapchain.CurrentCommandBuffer();
 
@@ -130,31 +134,37 @@ void VK_ClearAttachments(qboolean clear_depth, qboolean clear_stencil, qboolean 
 /*
 ** FULLSCREEN RECT
 */
-void VK_DrawFullscreenRect(vkimage_t *image) {
-	if (vk_d.fullscreenRectPipeline.handle == VK_NULL_HANDLE) {
-	
-		vkshader_t s = { 0 };
+static void VK_CreateFullscreenPipeline(vkpipeline_t *pipeline, qboolean upscale)
+{
+	if (pipeline->handle != VK_NULL_HANDLE)
+		return;
+
+	vkshader_t s = { 0 };
+	if (upscale)
+		VK_UpscaleRectShader(&s);
+	else
 		VK_FullscreenRectShader(&s);
-		
-		vk_d.state.colorBlend.blendEnable = VK_TRUE;
-		vk_d.state.colorBlend.colorBlendOp = VK_BLEND_OP_ADD;
-		vk_d.state.colorBlend.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-		vk_d.state.colorBlend.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
-		vk_d.state.colorBlend.alphaBlendOp = VK_BLEND_OP_ADD;
-		vk_d.state.colorBlend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-		vk_d.state.colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		vk_d.state.dsBlend.depthTestEnable = VK_FALSE;
 
-		VK_SetDescriptorSet(&vk_d.fullscreenRectPipeline, &vk_d.images[0].descriptor_set);
-		VK_SetShader(&vk_d.fullscreenRectPipeline, &s);
-		VK_AddBindingDescription(&vk_d.fullscreenRectPipeline, 0, sizeof(vec4_t), VK_VERTEX_INPUT_RATE_VERTEX);
-		VK_AddBindingDescription(&vk_d.fullscreenRectPipeline, 2, sizeof(vec2_t), VK_VERTEX_INPUT_RATE_VERTEX);
-		VK_AddAttributeDescription(&vk_d.fullscreenRectPipeline, 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0 * sizeof(float));
-		VK_AddAttributeDescription(&vk_d.fullscreenRectPipeline, 2, 2, VK_FORMAT_R32G32_SFLOAT, 0 * sizeof(float));
-		
-		VK_FinishPipeline(&vk_d.fullscreenRectPipeline);
+	vk_d.state.colorBlend.blendEnable = VK_TRUE;
+	vk_d.state.colorBlend.colorBlendOp = VK_BLEND_OP_ADD;
+	vk_d.state.colorBlend.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	vk_d.state.colorBlend.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	vk_d.state.colorBlend.alphaBlendOp = VK_BLEND_OP_ADD;
+	vk_d.state.colorBlend.srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	vk_d.state.colorBlend.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	vk_d.state.dsBlend.depthTestEnable = VK_FALSE;
 
-	}
+	VK_SetDescriptorSet(pipeline, &vk_d.images[0].descriptor_set);
+	VK_SetShader(pipeline, &s);
+	VK_AddBindingDescription(pipeline, 0, sizeof(vec4_t), VK_VERTEX_INPUT_RATE_VERTEX);
+	VK_AddBindingDescription(pipeline, 2, sizeof(vec2_t), VK_VERTEX_INPUT_RATE_VERTEX);
+	VK_AddAttributeDescription(pipeline, 0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0 * sizeof(float));
+	VK_AddAttributeDescription(pipeline, 2, 2, VK_FORMAT_R32G32_SFLOAT, 0 * sizeof(float));
+	VK_AddPushConstant(pipeline, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vec4_t));
+	VK_FinishPipeline(pipeline);
+}
+
+void VK_DrawFullscreenRectScaled(vkimage_t *image, uint32_t srcWidth, uint32_t srcHeight) {
 
 	// backup state
 	VkViewport vpSave = { 0 };
@@ -166,8 +176,17 @@ void VK_DrawFullscreenRect(vkimage_t *image) {
 	VK_UploadBufferDataOffset(&vk_d.vertexbuffer, vk_d.offset * sizeof(vec4_t), sizeof(vFullscreenQuad) / sizeof(vFullscreenQuad[0]) * sizeof(vec4_t), (void*)& vFullscreenQuad[0]);
 	VK_UploadBufferDataOffset(&vk_d.uvbuffer1, vk_d.offset * sizeof(vec2_t), sizeof(vFullscreenQuad) / sizeof(vFullscreenQuad[0]) * sizeof(vec2_t), (void*)& uvFullscreenQuad[0]);
 
-	VK_Bind1DescriptorSet(&vk_d.fullscreenRectPipeline, &image->descriptor_set);
-	VK_BindPipeline(&vk_d.fullscreenRectPipeline);
+	qboolean upscale = (r_upscaler && r_upscaler->integer) &&
+		(image->extent.width != vk.swapchain.extent.width ||
+		 image->extent.height != vk.swapchain.extent.height);
+	vkpipeline_t *pipeline = upscale ? &vk_d.upscaleRectPipeline : &vk_d.fullscreenRectPipeline;
+	VK_CreateFullscreenPipeline(pipeline, upscale);
+
+	vec4_t srcRect = { (float)srcWidth, (float)srcHeight,
+		(float)image->extent.width, (float)image->extent.height };
+	VK_Bind1DescriptorSet(pipeline, &image->descriptor_set);
+	VK_BindPipeline(pipeline);
+	VK_SetPushConstant(pipeline, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(vec4_t), &srcRect);
 	VK_DrawIndexed(&vk_d.indexbuffer, sizeof(idxFullscreenQuad) / sizeof(idxFullscreenQuad[0]), vk_d.offsetIdx, vk_d.offset);
 
 	vk_d.offsetIdx += sizeof(idxFullscreenQuad) / sizeof(idxFullscreenQuad[0]);
@@ -176,6 +195,81 @@ void VK_DrawFullscreenRect(vkimage_t *image) {
 	// restore state
 	Com_Memcpy(&vk_d.viewport, &vpSave, sizeof(vk_d.viewport));
 	Com_Memcpy(&vk_d.scissor, &sSave, sizeof(vk_d.scissor));
+}
+
+void VK_DrawFullscreenRect(vkimage_t *image) {
+	VK_DrawFullscreenRectScaled(image, image->extent.width, image->extent.height);
+}
+
+/*
+** ADAPTIVE RESOLUTION
+**
+** The ray-traced buffers are allocated at the display size, but only a
+** top-left sub-rect is traced.  This measures the real GPU frame time and
+** grows/shrinks that sub-rect, so fast GPUs get more pixels and slow ones
+** stay under the driver watchdog without per-GPU constants.
+*/
+void VK_AdaptiveResolutionTick(void) {
+	static uint32_t frames = 0;
+	static int lastTime = 0;
+
+	if (!r_rtxAdaptive || !r_rtxAdaptive->integer || !vk_raytracing_enabled)
+		return;
+	if (VK_NGX_Active())
+		return;
+	if (vk.renderMaxExtent.width == 0 || vk.renderMaxExtent.height == 0)
+		return;
+
+	if (++frames < 30)
+		return;
+
+	int now = Sys_Milliseconds();
+	if (lastTime == 0) {
+		lastTime = now;
+		frames = 0;
+		return;
+	}
+
+	double frameMs = (double)(now - lastTime) / (double)frames;
+	lastTime = now;
+	frames = 0;
+	if (frameMs <= 0.0)
+		return;
+
+	uint32_t w = vk.renderExtent.width;
+	uint32_t h = vk.renderExtent.height;
+	const double targetMs = 250.0;
+
+	if (frameMs < targetMs * 0.65) {
+		uint32_t nw = min(vk.renderMaxExtent.width, (uint32_t)(w * 1.05f));
+		uint32_t nh = min(vk.renderMaxExtent.height, (uint32_t)(h * 1.05f));
+		nw &= ~1u;
+		nh &= ~1u;
+		if (nw == w && nh == h)
+			return;
+		w = nw;
+		h = nh;
+	} else if (frameMs > targetMs * 1.40) {
+		uint32_t nw = max(320u, (uint32_t)(w * 0.95f)) & ~1u;
+		uint32_t nh = max(180u, (uint32_t)(h * 0.95f)) & ~1u;
+		if (nw == w && nh == h)
+			return;
+		w = nw;
+		h = nh;
+	} else {
+		static qboolean reported = qfalse;
+		if (!reported) {
+			ri.Printf(PRINT_ALL, "RTX: adaptive settled at %ux%u (%.1f ms)\n", w, h, frameMs);
+			reported = qtrue;
+		}
+		return;
+	}
+
+	vk.renderExtent.width = w;
+	vk.renderExtent.height = h;
+	vk.renderExtentChanged = qtrue;
+	vk_d.mipmapLevel = 1 + (int)floor(log2((double)max(w, h)));
+	ri.Printf(PRINT_ALL, "RTX: adaptive render %ux%u (%.1f ms)\n", w, h, frameMs);
 }
 
 /*
@@ -377,14 +471,20 @@ void VK_ResetPerformanceQueryPool(VkCommandBuffer command_buffer) {
 		PROFILER_IN_FLIGHT);
 }
 
-void VK_PerformanceQueryPoolResults() {
-	VK_CHECK(vkGetQueryPoolResults(vk.device, vk.queryPool,
-		PROFILER_IN_FLIGHT * vk.swapchain.currentImage,
+void VK_PerformanceQueryPoolResultsFor(uint32_t image) {
+	VkResult result = vkGetQueryPoolResults(vk.device, vk.queryPool,
+		PROFILER_IN_FLIGHT * image,
 		PROFILER_IN_FLIGHT,
 		sizeof(vk_d.queryPoolResults[0]),
-		&(vk_d.queryPoolResults[vk.swapchain.currentImage][0]),
+		&(vk_d.queryPoolResults[image][0]),
 		sizeof(vk_d.queryPoolResults[0][0]),
-		VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT), "failed to get Query results!");
+		VK_QUERY_RESULT_64_BIT);
+	if (result != VK_SUCCESS)
+		memset(&vk_d.queryPoolResults[image][0], 0, sizeof(vk_d.queryPoolResults[image]));
+}
+
+void VK_PerformanceQueryPoolResults() {
+	VK_PerformanceQueryPoolResultsFor(vk.swapchain.currentImage);
 }
 void VK_TimeBetweenMarkers(double* ms, int start, int end) {
 	*ms = (double)(vk_d.queryPoolResults[vk.swapchain.currentImage][end] - vk_d.queryPoolResults[vk.swapchain.currentImage][start]) * 1e-6;

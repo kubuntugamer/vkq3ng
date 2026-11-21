@@ -2142,7 +2142,7 @@ void R_RecursiveCreateAS(mnode_t* node, uint32_t* countIDXstatic, uint32_t* coun
 				if (tess.shader->surfaceFlags == SURF_NODRAW) continue;
 
 				// for dm0 some strange object in the distance
-				if (Distance(tess.xyz, (vec3_t){ -1830.72034, 3114.09717, 166.582550 }) < 250) {
+				if (Distance(tess.xyz[0], (vec3_t){ -1830.72034, 3114.09717, 166.582550 }) < 250) {
 					continue;
 				}
 				// if as is static we need one buffer
@@ -2164,8 +2164,8 @@ void R_RecursiveCreateAS(mnode_t* node, uint32_t* countIDXstatic, uint32_t* coun
 				else if (!RB_ASDynamic(tess.shader) && RB_ASDataDynamic(tess.shader)) {
 					countIDX = countIDXdynamicData;
 					countXYZ = countXYZdynamicData;
-					idx_buffer = &vk_d.geometry.idx_world_dynamic_data;
-					xyz_buffer = &vk_d.geometry.xyz_world_dynamic_data;
+					idx_buffer = &vk_d.geometry.idx_world_dynamic_data[0];
+					xyz_buffer = &vk_d.geometry.xyz_world_dynamic_data[0];
 					idx_buffer_offset = &vk_d.geometry.idx_world_dynamic_data_offset;
 					xyz_buffer_offset = &vk_d.geometry.xyz_world_dynamic_data_offset;
 					dynamic = qtrue;
@@ -2189,10 +2189,10 @@ void R_RecursiveCreateAS(mnode_t* node, uint32_t* countIDXstatic, uint32_t* coun
 				else if (RB_ASDynamic(tess.shader)) {
 					countIDX = countIDXdynamicAS;
 					countXYZ = countXYZdynamicAS;
-					idx_buffer = &vk_d.geometry.idx_world_dynamic_as;
-					xyz_buffer = &vk_d.geometry.xyz_world_dynamic_as;
-					idx_buffer_offset = &vk_d.geometry.idx_world_dynamic_as_offset;
-					xyz_buffer_offset = &vk_d.geometry.xyz_world_dynamic_as_offset;
+					idx_buffer = &vk_d.geometry.idx_world_dynamic_as[0];
+					xyz_buffer = &vk_d.geometry.xyz_world_dynamic_as[0];
+					idx_buffer_offset = &vk_d.geometry.idx_world_dynamic_as_offset[0];
+					xyz_buffer_offset = &vk_d.geometry.xyz_world_dynamic_as_offset[0];
 					dynamic = qtrue;
 
 					// keep track of dynamic as surf
@@ -2218,7 +2218,7 @@ void R_RecursiveCreateAS(mnode_t* node, uint32_t* countIDXstatic, uint32_t* coun
 				
 				// write idx
 				RB_UploadIDX(idx_buffer, (*idx_buffer_offset), (*countXYZ));
-				if (dynamic)for (int i = 1; i < vk.swapchain.imageCount; i++) RB_UploadIDX(idx_buffer[i], (*idx_buffer_offset), (*countXYZ));
+				if (dynamic)for (int i = 1; i < vk.swapchain.imageCount; i++) RB_UploadIDX(&idx_buffer[i], (*idx_buffer_offset), (*countXYZ));
 				
 				// write xyz
 				RB_UploadXYZ(xyz_buffer, (*xyz_buffer_offset), clusterIDX);
@@ -2731,7 +2731,7 @@ void R_PreparePT() {
 			up[1] = 500;
 		}
 		tess.shader->sort = 10;
-		RB_AddQuadStampExt(origin, left, up, tess.vertexColors, 0, 0, 1, 1);
+		RB_AddQuadStampExt(origin, left, up, (byte*)tess.vertexColors, 0, 0, 1, 1);
 
 		vkbuffer_t* idx_buffer;
 		vkbuffer_t* xyz_buffer;
@@ -3141,7 +3141,7 @@ void R_PreparePT() {
 		VK_CreateCubeMap(&vk_d.accelerationStructures.envmap, 1, 1,
 			VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 1, 6);
 		for (int skyIndex = 0; skyIndex < 5; skyIndex++) {
-			VK_UploadImageData(&vk_d.accelerationStructures.envmap, 1, 1, &black, 4, 0, skyIndex);
+			VK_UploadImageData(&vk_d.accelerationStructures.envmap, 1, 1, black, 4, 0, skyIndex);
 		}
 		VK_CreateSampler(&vk_d.accelerationStructures.envmap, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
 	}
@@ -3151,7 +3151,7 @@ void R_PreparePT() {
 		VkCommandBuffer commandBuffer = { 0 };
 		VK_BeginSingleTimeCommands(&commandBuffer);
 		vk_d.scratchBufferOffset = 0;
-		VK_MakeTopAS(commandBuffer, &vk_d.topAS[i], &vk_d.topASBuffer[i], vk_d.bottomASWorldStatic, 1, &vk_d.instanceBuffer[i], VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NV);
+		VK_MakeTopAS(commandBuffer, &vk_d.topAS[i], &vk_d.topASBuffer[i], &vk_d.bottomASWorldStatic, 1, &vk_d.instanceBuffer[i], VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NV);
 		VK_EndSingleTimeCommands(&commandBuffer);
 	}
 	vk_d.scratchBufferOffset = 0;
@@ -3192,7 +3192,7 @@ void R_PreparePT() {
 	}
 
 	VK_CreateImage(&vk_d.accelerationStructures.lightVisData, RTX_MAX_LIGHTS, vk_d.numMaxClusters, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 1);
-	VK_UploadMipImageData(&vk_d.accelerationStructures.lightVisData, RTX_MAX_LIGHTS, vk_d.numClusters, &lightVisibility[0], 4, 0);
+	VK_UploadMipImageData(&vk_d.accelerationStructures.lightVisData, RTX_MAX_LIGHTS, vk_d.numClusters, (const uint8_t*)lightVisibility, 4, 0);
 	VK_TransitionImage(&vk_d.accelerationStructures.lightVisData, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 	free(lightVisibility);
 
@@ -3221,7 +3221,7 @@ void R_PreparePT() {
 	}
 
 	VK_CreateImage(&vk_d.accelerationStructures.lightVisData2, RTX_MAX_LIGHTS, s_worldData.numClusters, VK_FORMAT_R32_UINT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 1);
-	VK_UploadMipImageData(&vk_d.accelerationStructures.lightVisData2, RTX_MAX_LIGHTS, s_worldData.numClusters, &lightVisibility[0], 4, 0);
+	VK_UploadMipImageData(&vk_d.accelerationStructures.lightVisData2, RTX_MAX_LIGHTS, s_worldData.numClusters, (const uint8_t*)lightVisibility, 4, 0);
 	VK_TransitionImage(&vk_d.accelerationStructures.lightVisData2, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL);
 	free(lightVisibility);
 

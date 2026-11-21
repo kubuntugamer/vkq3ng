@@ -90,17 +90,29 @@ static void VK_CreateSwapChain() {
 
 	swapChainSupportDetails_t swapChainSupport = querySwapChainSupport(vk.physicalDevice, vk.surface);
 
-	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(&swapChainSupport.formats[0], swapChainSupport.formatCount);
-	VkPresentModeKHR presentMode = chooseSwapPresentMode(&swapChainSupport.presentModes[0], swapChainSupport.presentModeCount);
+	VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats, swapChainSupport.formatCount);
+	VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes, swapChainSupport.presentModeCount);
+	free(swapChainSupport.formats);
+	free(swapChainSupport.presentModes);
 	
 	// set extent
-	vk.swapchain.extent = swapChainSupport.capabilities.currentExtent;
+	if (swapChainSupport.capabilities.currentExtent.width == 0xFFFFFFFF) {
+		// Wayland (and some other WSI) let the application choose the size.
+		vk.swapchain.extent.width = glConfig.vidWidth;
+		vk.swapchain.extent.height = glConfig.vidHeight;
+	} else {
+		vk.swapchain.extent = swapChainSupport.capabilities.currentExtent;
+	}
 	vk.swapchain.extent.width = max(swapChainSupport.capabilities.minImageExtent.width, min(swapChainSupport.capabilities.maxImageExtent.width, vk.swapchain.extent.width));
 	vk.swapchain.extent.height = max(swapChainSupport.capabilities.minImageExtent.height, min(swapChainSupport.capabilities.maxImageExtent.height, vk.swapchain.extent.height));
 
 	vk.swapchain.imageFormat = surfaceFormat.format;
 
-	uint32_t imageCount = min(swapChainSupport.capabilities.maxImageCount, VK_MAX_SWAPCHAIN_SIZE);
+	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount)
+		imageCount = swapChainSupport.capabilities.maxImageCount;
+	if (imageCount > VK_MAX_SWAPCHAIN_SIZE)
+		imageCount = VK_MAX_SWAPCHAIN_SIZE;
 
 	VkSwapchainCreateInfoKHR createInfo = {0};
 	createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -133,9 +145,22 @@ static void VK_CreateSwapChain() {
 
 	VK_CHECK(vkCreateSwapchainKHR(vk.device, &createInfo, NULL, &vk.swapchain.handle), "failed to create Swapchain!");
 
-	vkGetSwapchainImagesKHR(vk.device, vk.swapchain.handle, &vk.swapchain.imageCount, NULL);
-	vk.swapchain.images = malloc(vk.swapchain.imageCount * sizeof(VkImage));
-	vkGetSwapchainImagesKHR(vk.device, vk.swapchain.handle, &imageCount, &vk.swapchain.images[0]);
+	uint32_t swapchainImageCount = 0;
+	VK_CHECK(vkGetSwapchainImagesKHR(vk.device, vk.swapchain.handle, &swapchainImageCount, NULL), "failed to query swapchain image count!");
+	for (;;) {
+		vk.swapchain.images = realloc(vk.swapchain.images, swapchainImageCount * sizeof(VkImage));
+		uint32_t got = swapchainImageCount;
+		VkResult result = vkGetSwapchainImagesKHR(vk.device, vk.swapchain.handle, &got, vk.swapchain.images);
+		if (result == VK_SUCCESS) {
+			vk.swapchain.imageCount = got;
+			break;
+		}
+		if (result == VK_INCOMPLETE) {
+			swapchainImageCount = got;
+			continue;
+		}
+		VK_CHECK(result, "failed to get swapchain images!");
+	}
 
 }
 
@@ -261,7 +286,7 @@ static void VK_CreateRenderPass()
 	renderPassInfo.subpassCount = 1;
 	renderPassInfo.pSubpasses = &subpass;
 	renderPassInfo.dependencyCount = 1;
-	renderPassInfo.pDependencies = &dependency;
+	renderPassInfo.pDependencies = &dependency[0];
 
 	VK_CHECK(vkCreateRenderPass(vk.device, &renderPassInfo, NULL, &vk.swapchain.renderpass), "failed to create RenderPass for Swapchain!");
 }
@@ -355,6 +380,7 @@ void VK_BeginFrame()
 	// we want to wait until the commands frm the current image and next image have completed execution in order to avoid race condition when reading the prev buffers
     vkWaitForFences(vk.device, 1, &vk.swapchain.inFlightFences[vk.swapchain.currentImage], VK_TRUE, UINT64_MAX);
 	vkWaitForFences(vk.device, 1, &vk.swapchain.inFlightFences[(vk.swapchain.currentImage + 1) % vk.swapchain.imageCount], VK_TRUE, UINT64_MAX);
+	VK_AdaptiveResolutionTick();
     vkResetFences(vk.device, 1, &vk.swapchain.inFlightFences[vk.swapchain.currentImage]);
     clock_t end = clock();
     float seconds = (float)(end - start) / CLOCKS_PER_SEC;
@@ -462,6 +488,7 @@ static VkSurfaceFormatKHR chooseSwapSurfaceFormat(VkSurfaceFormatKHR *availableF
 
 static VkPresentModeKHR chooseSwapPresentMode(VkPresentModeKHR *availablePresentModes, uint32_t availablePresentModesCount) {
 	VkPresentModeKHR bestMode = VK_PRESENT_MODE_FIFO_KHR;
+
 
 	for (int i = 0; i < availablePresentModesCount; i++) {
 		if (availablePresentModes[i] == VK_PRESENT_MODE_MAILBOX_KHR) {

@@ -1,11 +1,14 @@
 
 #include "../tr_local.h"
+#include "vk_ngx.h"
+#include <stdlib.h>
+#include <string.h>
 
 vkinstance_t vk;
 vkdata_t     vk_d;
 
 static const char* deviceExtensions[] = {
-#if defined( _WIN32 )
+#if defined( _WIN32 ) || defined( __linux__ )
 		VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
 		VK_NV_RAY_TRACING_EXTENSION_NAME,
 		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
@@ -22,9 +25,9 @@ static const char* validationLayers[] = {
 };
 
 static const char* instanceExtensions[] = {
+		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
 #ifndef NDEBUG
 		VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
-		VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
 #endif
 		VK_KHR_SURFACE_EXTENSION_NAME,
 #if defined( _WIN32 )
@@ -33,7 +36,9 @@ static const char* instanceExtensions[] = {
 #elif defined(__APPLE__)
 		VK_MVK_MACOS_SURFACE_EXTENSION_NAME
 #elif defined( __linux__ )
-
+		VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
+		"VK_KHR_wayland_surface",
+		VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
 #endif
 };
 
@@ -56,9 +61,11 @@ static void VK_SetupQueryPool();
 
 // Helper
 static qboolean VK_IsDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface);
+static qboolean vk_raytracing_requested;
 static qboolean VK_CheckValidationLayerSupport();
 
-void VK_Setup(void* p1, void* p2) {
+qboolean VK_Setup(void* p1, void* p2) {
+    vk_raytracing_requested = (r_vertexLight && r_vertexLight->value == 2);
     if (!VK_LoadGlobalFunctions()) return qfalse;
     VK_CreateInstance();
     if (!VK_LoadInstanceFunctions()) return qfalse;
@@ -75,11 +82,13 @@ void VK_Setup(void* p1, void* p2) {
 	VK_SetupSwapchain();
 	// For Performance Marker
 	VK_SetupQueryPool();
+	return qtrue;
 }
 
 void VK_Destroy() {
 	vkDeviceWaitIdle(vk.device);
 
+	VK_NGX_Shutdown(vk.device);
 	VK_DestroySwapchain();
 
 	vkDestroyQueryPool(vk.device, vk.queryPool, NULL);
@@ -97,6 +106,10 @@ void VK_Destroy() {
 }
 
 static void VK_CreateInstance() {
+	const char* enabledExtensions[16];
+	uint32_t enabledExtensionCount = 0;
+	qboolean validationAvailable = qfalse;
+
 	// check extensions availability
 	{
 		uint32_t count = 0;
@@ -112,14 +125,19 @@ static void VK_CreateInstance() {
 					break;
 				}
 			}
-			if (!supported) ri.Error(ERR_FATAL, "Vulkan: required instance extension is not available: %s", instanceExtensions[i]);
+			if (!supported) {
+				ri.Printf(PRINT_WARNING, "Vulkan: instance extension not available: %s\n", instanceExtensions[i]);
+				continue;
+			}
+			enabledExtensions[enabledExtensionCount++] = instanceExtensions[i];
 		}
 		free(extension_properties);
 	}
 
 #ifndef NDEBUG
-	if (!VK_CheckValidationLayerSupport()) {
-		ri.Error(ERR_FATAL, "Vulkan: validation layers requested, but not available!");
+	validationAvailable = VK_CheckValidationLayerSupport();
+	if (!validationAvailable) {
+		ri.Printf(PRINT_WARNING, "Vulkan: validation layers requested, but not available, continuing without them\n");
 	}
 #endif
 
@@ -141,11 +159,13 @@ static void VK_CreateInstance() {
 		desc.pApplicationInfo = &vk_app_info;
 		desc.enabledLayerCount = 0;
 		desc.ppEnabledLayerNames = NULL;
-		desc.enabledExtensionCount = sizeof(instanceExtensions) / sizeof(instanceExtensions[0]);
-		desc.ppEnabledExtensionNames = instanceExtensions;
+		desc.enabledExtensionCount = enabledExtensionCount;
+		desc.ppEnabledExtensionNames = enabledExtensions;
 #ifndef NDEBUG
-		desc.enabledLayerCount = (uint32_t)(sizeof(validationLayers) / sizeof(validationLayers[0]));
-		desc.ppEnabledLayerNames = &validationLayers[0];
+		if (validationAvailable) {
+			desc.enabledLayerCount = (uint32_t)(sizeof(validationLayers) / sizeof(validationLayers[0]));
+			desc.ppEnabledLayerNames = &validationLayers[0];
+		}
 #endif
 		VK_CHECK(vkCreateInstance(&desc, NULL, &vk.instance), "failed to create Instance!");
 	}
@@ -157,6 +177,14 @@ static void VK_CreateInstance() {
 ** win:		(HINSTANCE, HWND)
 ** macOS:	(NSView, NULL)
 */
+static qboolean vk_use_wayland_surface = qfalse;
+static qboolean vk_raytracing_requested = qfalse;
+qboolean vk_raytracing_enabled = qfalse;
+
+void VK_SetWaylandSurface(void) {
+	vk_use_wayland_surface = qtrue;
+}
+
 static void VK_CreateSurface(void* p1, void* p2) {
 #ifdef WIN32
 	VkWin32SurfaceCreateInfoKHR desc = {0};
@@ -174,7 +202,27 @@ static void VK_CreateSurface(void* p1, void* p2) {
     desc.pView = p1;
     VK_CHECK(vkCreateMacOSSurfaceMVK(vk.instance, &desc, NULL, &vk.surface), "failed to create MacOS Surface!");
 #elif defined( __linux__ )
-        
+	if (vk_use_wayland_surface) {
+		VkWaylandSurfaceCreateInfoKHR desc = {0};
+		desc.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
+		desc.pNext = NULL;
+		desc.flags = 0;
+		desc.display = (struct wl_display*)p1;
+		desc.surface = (struct wl_surface*)p2;
+		if (!vkCreateWaylandSurfaceKHR)
+			ri.Error(ERR_FATAL, "Vulkan: vkCreateWaylandSurfaceKHR is not available!");
+		VK_CHECK(vkCreateWaylandSurfaceKHR(vk.instance, &desc, NULL, &vk.surface), "failed to create Wayland Surface!");
+	} else {
+		VkXlibSurfaceCreateInfoKHR desc = {0};
+		desc.sType = VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR;
+		desc.pNext = NULL;
+		desc.flags = 0;
+		desc.dpy = (Display*)p1;
+		desc.window = (Window)(uintptr_t)p2;
+		if (!vkCreateXlibSurfaceKHR)
+			ri.Error(ERR_FATAL, "Vulkan: vkCreateXlibSurfaceKHR is not available!");
+		VK_CHECK(vkCreateXlibSurfaceKHR(vk.instance, &desc, NULL, &vk.surface), "failed to create Xlib Surface!");
+	}
 #endif
 }
 
@@ -189,12 +237,24 @@ static void VK_PickPhysicalDevice()
 		VkPhysicalDevice devices[10];
 		vkEnumeratePhysicalDevices(vk.instance, &deviceCount, &devices[0]);
 
-		for (int i = 0; i < deviceCount; i++) {
-			if (VK_IsDeviceSuitable(devices[i], vk.surface)) {
-				vk.physicalDevice = devices[i];
-				break;
+		for (int pass = 0; pass < 2 && vk.physicalDevice == VK_NULL_HANDLE; pass++) {
+			for (int i = 0; i < deviceCount; i++) {
+				if (VK_IsDeviceSuitable(devices[i], vk.surface)) {
+					vk.physicalDevice = devices[i];
+					break;
+				}
+			}
+			if (vk.physicalDevice == VK_NULL_HANDLE && vk_raytracing_requested) {
+				ri.Printf(PRINT_WARNING, "Vulkan: no ray-tracing GPU available, falling back to raster\n");
+				vk_raytracing_requested = qfalse;
 			}
 		}
+	}
+
+	vk_raytracing_enabled = vk_raytracing_requested;
+	if (!vk_raytracing_enabled && r_vertexLight && r_vertexLight->value == 2) {
+		r_vertexLight->integer = 0;
+		r_vertexLight->value = 0;
 	}
 
 	if (vk.physicalDevice == VK_NULL_HANDLE) {
@@ -220,11 +280,12 @@ static void VK_PickPhysicalDevice()
 	}
 	// device properties
 	vkGetPhysicalDeviceProperties(vk.physicalDevice, &vk.deviceProperties);
+	ri.Printf(PRINT_ALL, "Vulkan: using %s\n", vk.deviceProperties.deviceName);
 
 	// rtx properties
 	vk.rayTracingProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PROPERTIES_NV;
 	vk.deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-	vk.deviceProperties2.pNext = &vk.rayTracingProperties;
+	vk.deviceProperties2.pNext = vk_raytracing_enabled ? &vk.rayTracingProperties : NULL;
 	vkGetPhysicalDeviceProperties2(vk.physicalDevice, &vk.deviceProperties2);
 
 	// device limits
@@ -267,9 +328,37 @@ static void VK_CreateLogicalDevice()
 	indexingFeatures.descriptorBindingVariableDescriptorCount = qtrue;
 	indexingFeatures.descriptorBindingPartiallyBound = qtrue;
 
+	/* DLSS needs four optional extensions.  Only enable them when the
+	 * physical device advertises all of them, so raster-only devices (AMD,
+	 * Intel, llvmpipe) are unaffected. */
+	uint32_t availableExtensionCount = 0;
+	vkEnumerateDeviceExtensionProperties(vk.physicalDevice, NULL, &availableExtensionCount, NULL);
+	VkExtensionProperties *availableExtensions = malloc(availableExtensionCount * sizeof(VkExtensionProperties));
+	vkEnumerateDeviceExtensionProperties(vk.physicalDevice, NULL, &availableExtensionCount, availableExtensions);
+	qboolean ngxExtensions = qfalse;
+	if (vk_raytracing_enabled) {
+		qboolean hasBinaryImport = qfalse, hasImageViewHandle = qfalse, hasBufferAddress = qfalse, hasPushDescriptor = qfalse;
+		for (uint32_t i = 0; i < availableExtensionCount; i++) {
+			if (!strcmp(availableExtensions[i].extensionName, VK_NVX_BINARY_IMPORT_EXTENSION_NAME)) hasBinaryImport = qtrue;
+			if (!strcmp(availableExtensions[i].extensionName, VK_NVX_IMAGE_VIEW_HANDLE_EXTENSION_NAME)) hasImageViewHandle = qtrue;
+			if (!strcmp(availableExtensions[i].extensionName, VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME)) hasBufferAddress = qtrue;
+			if (!strcmp(availableExtensions[i].extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME)) hasPushDescriptor = qtrue;
+		}
+		ngxExtensions = hasBinaryImport && hasImageViewHandle && hasBufferAddress && hasPushDescriptor;
+	}
+	free(availableExtensions);
+
+	VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures = { 0 };
+	bufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
+	bufferDeviceAddressFeatures.bufferDeviceAddress = ngxExtensions ? VK_TRUE : VK_FALSE;
+
 	VkPhysicalDeviceFeatures2 device_features = { 0 };
 	device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR;
 	device_features.pNext = &indexingFeatures;
+	if (ngxExtensions) {
+		bufferDeviceAddressFeatures.pNext = device_features.pNext;
+		device_features.pNext = &bufferDeviceAddressFeatures;
+	}
 
 	VkDeviceCreateInfo desc = { 0 };
 	desc.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -279,10 +368,24 @@ static void VK_CreateLogicalDevice()
 
 	desc.pEnabledFeatures = &deviceFeatures;
 
-	desc.enabledExtensionCount = (uint32_t)(sizeof(deviceExtensions) / sizeof(deviceExtensions[0]));
-	desc.ppEnabledExtensionNames = &deviceExtensions[0];
-
-	VK_CHECK(vkCreateDevice(vk.physicalDevice, &desc, NULL, &vk.device), "failed to create logical device!")
+	{
+		const char* enabledExtensions[16];
+		uint32_t enabledExtensionCount = 0;
+		for (uint32_t i = 0; i < (sizeof(deviceExtensions) / sizeof(deviceExtensions[0])); i++) {
+			if (!vk_raytracing_enabled && !strcmp(deviceExtensions[i], VK_NV_RAY_TRACING_EXTENSION_NAME))
+				continue;
+			enabledExtensions[enabledExtensionCount++] = deviceExtensions[i];
+		}
+		if (ngxExtensions) {
+			enabledExtensions[enabledExtensionCount++] = VK_NVX_BINARY_IMPORT_EXTENSION_NAME;
+			enabledExtensions[enabledExtensionCount++] = VK_NVX_IMAGE_VIEW_HANDLE_EXTENSION_NAME;
+			enabledExtensions[enabledExtensionCount++] = VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME;
+			enabledExtensions[enabledExtensionCount++] = VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME;
+		}
+		desc.enabledExtensionCount = enabledExtensionCount;
+		desc.ppEnabledExtensionNames = enabledExtensions;
+		VK_CHECK(vkCreateDevice(vk.physicalDevice, &desc, NULL, &vk.device), "failed to create logical device!")
+	}
 }
 
 static void VK_CreateCommandPool() {
@@ -298,14 +401,10 @@ static void VK_CreateCommandPool() {
 }
 
 static void VK_SetupQueryPool() {
-	VkQueryPoolCreateInfo createInfo = {
-		VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO,
-		NULL,
-		NULL,
-		VK_QUERY_TYPE_TIMESTAMP,
-		VK_MAX_SWAPCHAIN_SIZE * PROFILER_IN_FLIGHT,
-		NULL
-	};
+	VkQueryPoolCreateInfo createInfo = { 0 };
+	createInfo.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;
+	createInfo.queryType = VK_QUERY_TYPE_TIMESTAMP;
+	createInfo.queryCount = VK_MAX_SWAPCHAIN_SIZE * PROFILER_IN_FLIGHT;
 	VK_CHECK(vkCreateQueryPool(vk.device, &createInfo, NULL, &vk.queryPool), "failed to create queryPool!");
 }
 
@@ -366,7 +465,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL VK_DebugCallback(VkDebugUtilsMessageSeveri
 	return VK_FALSE;
 }
 
-void VK_SetupDebugCallback() {
+static void VK_SetupDebugCallback() {
 	VkDebugUtilsMessengerCreateInfoEXT createInfo = { 0 };
 	createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 	createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
@@ -425,13 +524,15 @@ static vkqueueFamilyIndices_t VK_FindQueueFamilies(VkPhysicalDevice device, VkSu
 }
 
 static qboolean VK_CheckDeviceExtensionSupport(VkPhysicalDevice device) {
-	uint32_t extensionCount;
+	uint32_t extensionCount = 0;
 	vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, NULL);
 	VkExtensionProperties* availableExtensions = malloc(extensionCount * sizeof(VkExtensionProperties));
 	vkEnumerateDeviceExtensionProperties(device, NULL, &extensionCount, &availableExtensions[0]);
 
 	for (int i = 0; i < (sizeof(deviceExtensions) / sizeof(deviceExtensions[0])); i++) {
 		qboolean supported = qfalse;
+		if (!vk_raytracing_requested && !strcmp(deviceExtensions[i], VK_NV_RAY_TRACING_EXTENSION_NAME))
+			continue;
 		for (int j = 0; j < extensionCount; j++) {
 			if (!strcmp(availableExtensions[j].extensionName, deviceExtensions[i])) {
 				supported = qtrue;
@@ -448,7 +549,7 @@ static qboolean VK_CheckDeviceExtensionSupport(VkPhysicalDevice device) {
 	return qtrue;
 }
 
-qboolean VK_IsDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface) {
+static qboolean VK_IsDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface) {
 	vkqueueFamilyIndices_t queueFamilyIndices = VK_FindQueueFamilies(device, surface);
 
 	qboolean extensionsSupported = VK_CheckDeviceExtensionSupport(device);
@@ -457,6 +558,8 @@ qboolean VK_IsDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface) {
 	if (extensionsSupported) {
 		swapChainSupportDetails_t swapChainSupport = querySwapChainSupport(device, surface);
 		swapChainAdequate = swapChainSupport.formatCount && swapChainSupport.presentModeCount;
+		free(swapChainSupport.formats);
+		free(swapChainSupport.presentModes);
 	}
 
 	if (queueFamilyIndices.graphicsFamily >= 0 &&
@@ -476,20 +579,20 @@ qboolean VK_IsDeviceSuitable(VkPhysicalDevice device, VkSurfaceKHR surface) {
 
 
 swapChainSupportDetails_t querySwapChainSupport(VkPhysicalDevice device, VkSurfaceKHR surface) {
-	swapChainSupportDetails_t details;
+	swapChainSupportDetails_t details = { 0 };
 
 	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
 
 	vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &details.formatCount, NULL);
-
 	if (details.formatCount != 0) {
-		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &details.formatCount, &details.formats[0]);
+		details.formats = malloc(details.formatCount * sizeof(VkSurfaceFormatKHR));
+		vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &details.formatCount, details.formats);
 	}
 
 	vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &details.presentModeCount, NULL);
-
 	if (details.presentModeCount != 0) {
-		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &details.presentModeCount, &details.presentModes[0]);
+		details.presentModes = malloc(details.presentModeCount * sizeof(VkPresentModeKHR));
+		vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &details.presentModeCount, details.presentModes);
 	}
 
 	return details;

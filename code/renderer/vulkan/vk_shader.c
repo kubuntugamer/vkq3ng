@@ -6,6 +6,7 @@
 
 #include "../../../shader/header/fullscreenRect.vert.h"
 #include "../../../shader/header/fullscreenRect.frag.h"
+#include "../../../shader/header/upscaleRect.frag.h"
 
 #include "../../../shader/header/texture.vert.h"
 #include "../../../shader/header/texture.frag.h"
@@ -44,6 +45,7 @@
 static vkshader_t *texture;
 static vkshader_t *clearAttachment;
 static vkshader_t *fullscreenRect;
+static vkshader_t *upscaleRect;
 static vkshader_t* asvgfRngCompShader;
 static vkshader_t* asvgfFwdCompShader;
 static vkshader_t* asvgfGradCompShader;
@@ -62,13 +64,13 @@ static vkshader_t* reflectRays;
 static vkshader_t* directIllumination;
 static vkshader_t* indirectIllumination;
 
-void VK_CreateShaderModule(VkShaderModule *handle, const char *code, size_t size);
+void VK_CreateShaderModule(VkShaderModule *handle, const void *code, size_t size);
 void VK_LoadVertFragShadersFromFile(vkshader_t *shader, const char *vertexSPV, const char *fragmentSPV);
-void VK_LoadVertFragShadersFromVariable(vkshader_t* shader, const char* vertexSPV, const uint32_t sizeVert, const char* fragmentSPV, const uint32_t sizeFrag);
-void VK_LoadCompShaderFromVariable(vkshader_t* shader, const char* compSPV, const uint32_t sizeComp);
-void VK_LoadRayTracingShadersFromVariable(vkshader_t* shader, const char* rgenSPV, const uint32_t sizeRGEN,
-	const char* rmissSPV, const uint32_t sizeRMISS,
-	const char* rhitSPV, const uint32_t sizeRHIT);
+void VK_LoadVertFragShadersFromVariable(vkshader_t* shader, const void* vertexSPV, const uint32_t sizeVert, const void* fragmentSPV, const uint32_t sizeFrag);
+void VK_LoadCompShaderFromVariable(vkshader_t* shader, const void* compSPV, const uint32_t sizeComp);
+void VK_LoadRayTracingShadersFromVariable(vkshader_t* shader, const void* rgenSPV, const uint32_t sizeRGEN,
+	const void* rmissSPV, const uint32_t sizeRMISS,
+	const void* rhitSPV, const uint32_t sizeRHIT);
 
 void VK_SingleTextureShader(vkshader_t *shader){
     if (texture == NULL) {
@@ -95,6 +97,14 @@ void VK_FullscreenRectShader(vkshader_t* shader) {
 		VK_LoadVertFragShadersFromVariable(fullscreenRect, &fullscreenRectVert, sizeof(fullscreenRectVert), &fullscreenRectFrag, sizeof(fullscreenRectFrag));
 	}
 	Com_Memcpy(shader, fullscreenRect, sizeof(vkshader_t));
+}
+
+void VK_UpscaleRectShader(vkshader_t* shader) {
+	if (upscaleRect == NULL) {
+		upscaleRect = malloc(sizeof(vkshader_t));
+		VK_LoadVertFragShadersFromVariable(upscaleRect, &fullscreenRectVert, sizeof(fullscreenRectVert), &upscaleRectFrag, sizeof(upscaleRectFrag));
+	}
+	Com_Memcpy(shader, upscaleRect, sizeof(vkshader_t));
 }
 
 void VK_AsvgfRngCompShader(vkshader_t* shader) {
@@ -209,6 +219,11 @@ void VK_DestroyAllShaders() {
 		free(fullscreenRect);
 		fullscreenRect = NULL;
 	}
+	if (upscaleRect != NULL) {
+		VK_DestroyShader(upscaleRect);
+		free(upscaleRect);
+		upscaleRect = NULL;
+	}
 	// compute
 	if (asvgfRngCompShader != NULL) {
 		VK_DestroyShader(asvgfRngCompShader);
@@ -294,7 +309,7 @@ void VK_DestroyAllShaders() {
 	}
 }
 
-void VK_CreateShaderModule(VkShaderModule *handle, const char *code, size_t size)
+void VK_CreateShaderModule(VkShaderModule *handle, const void *code, size_t size)
 {
     VkShaderModuleCreateInfo createInfo = { 0 };
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -305,7 +320,7 @@ void VK_CreateShaderModule(VkShaderModule *handle, const char *code, size_t size
 }
 
 // Vertex and Fragment Shader
-void VK_LoadVertFragShadersFromVariable(vkshader_t* shader, const char* vertexSPV, const uint32_t sizeVert, const char* fragmentSPV, const uint32_t sizeFrag) {
+void VK_LoadVertFragShadersFromVariable(vkshader_t* shader, const void* vertexSPV, const uint32_t sizeVert, const void* fragmentSPV, const uint32_t sizeFrag) {
 	shader->size = 2;
 	shader->modules = malloc(shader->size * sizeof(VkShaderModule));
 	shader->flags = malloc(shader->size * sizeof(VkShaderStageFlagBits));
@@ -329,7 +344,7 @@ void VK_LoadVertFragShadersFromVariable(vkshader_t* shader, const char* vertexSP
 	shader->shaderStageCreateInfos[1].pName = "main";
 }
 
-void VK_LoadCompShaderFromVariable(vkshader_t* shader, const char* compSPV, const uint32_t sizeComp) {
+void VK_LoadCompShaderFromVariable(vkshader_t* shader, const void* compSPV, const uint32_t sizeComp) {
 	shader->size = 1;
 	shader->modules = malloc(shader->size * sizeof(VkShaderModule));
 	shader->flags = malloc(shader->size * sizeof(VkShaderStageFlagBits));
@@ -395,9 +410,9 @@ void VK_LoadVertFragShadersFromFile(vkshader_t *shader, const char *vertexSPV, c
 }
 
 // RTX
-void VK_LoadRayTracingShadersFromVariable(vkshader_t* shader, const char* rgenSPV, const uint32_t sizeRGEN, 
-																const char* rmissSPV, const uint32_t sizeRMISS,
-																const char* rhitSPV, const uint32_t sizeRHIT) {
+void VK_LoadRayTracingShadersFromVariable(vkshader_t* shader, const void* rgenSPV, const uint32_t sizeRGEN, 
+																const void* rmissSPV, const uint32_t sizeRMISS,
+																const void* rhitSPV, const uint32_t sizeRHIT) {
 	shader->size = 3;
 	shader->modules = calloc(shader->size, sizeof(VkShaderModule));
 	shader->flags = calloc(shader->size, sizeof(VkShaderStageFlagBits));
@@ -428,14 +443,14 @@ void VK_LoadRayTracingShadersFromVariable(vkshader_t* shader, const char* rgenSP
 	shader->shaderStageCreateInfos[2].pName = "main";
 
 }
-void VK_LoadRayTracingShadersWithAnyFromVariable(vkshader_t* shader, const char* rgenSPV, const uint32_t sizeRGEN,
-	const char* rmissSPV, const uint32_t sizeRMISS,
-	const char* rhitSPV, const uint32_t sizeRHIT,
-	const char* rahitSPV, const uint32_t sizeRAHIT,
+void VK_LoadRayTracingShadersWithAnyFromVariable(vkshader_t* shader, const void* rgenSPV, const uint32_t sizeRGEN,
+	const void* rmissSPV, const uint32_t sizeRMISS,
+	const void* rhitSPV, const uint32_t sizeRHIT,
+	const void* rahitSPV, const uint32_t sizeRAHIT,
 	// shadow
-	const char* rmissShadowSPV, const uint32_t sizeRMISSShadow,
-	const char* rchitShadowSPV, const uint32_t sizeRCHITShadow,
-	const char* rahitShadowSPV, const uint32_t sizeRAHITShadow) {
+	const void* rmissShadowSPV, const uint32_t sizeRMISSShadow,
+	const void* rchitShadowSPV, const uint32_t sizeRCHITShadow,
+	const void* rahitShadowSPV, const uint32_t sizeRAHITShadow) {
 	shader->size = 7;
 	shader->modules = calloc(shader->size, sizeof(VkShaderModule));
 	shader->flags = calloc(shader->size, sizeof(VkShaderStageFlagBits));

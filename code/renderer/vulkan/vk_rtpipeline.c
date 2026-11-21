@@ -166,5 +166,5 @@ void VK_TraceRays(vkrtpipeline_t* pipeline) {
 		pipeline->shaderBindingTableBuffer.buffer, 0, bindingStride,
 		pipeline->shaderBindingTableBuffer.buffer, 0, bindingStride,
 		VK_NULL_HANDLE, 0, 0,
-		vk.swapchain.extent.width, vk.swapchain.extent.height, 1);
+		vk.renderExtent.width, vk.renderExtent.height, 1);
 }

@@ -5,7 +5,7 @@
 #pragma optionNV (unroll all)
 #include "../constants.h"
 #include "defines.glsl"
-#include "rt_helper.glsl"
+#include "rt_Helper.glsl"
 #include "sky.glsl"
 #include "random.glsl"
 #include "globalTexture.glsl"

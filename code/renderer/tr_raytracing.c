@@ -1,4 +1,5 @@
 #include "tr_local.h"
+#include "vulkan/vk_ngx.h"
 #include "../../shader/glsl/constants.h"
 
 /*
@@ -411,7 +412,7 @@ static void RB_UpdateRayTraceAS(drawSurf_t* drawSurfs, int numDrawSurfs) {
 	VK_UploadBufferDataOffset(&vk_d.instanceBuffer[vk.swapchain.currentImage], vk_d.bottomASTraceListCount * sizeof(VkGeometryInstanceNV), sizeof(VkGeometryInstanceNV), (void*)&vk_d.bottomASWorldDynamicAS[vk.swapchain.currentImage].geometryInstance);
 	VK_UpdateBottomAS(vk.swapchain.CurrentCommandBuffer(), &vk_d.bottomASWorldDynamicAS[vk.swapchain.currentImage],
 		&vk_d.bottomASWorldDynamicAS[vk.swapchain.currentImage],
-		&vk_d.basBufferWorldDynamicAS, NULL, VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV);
+		&vk_d.basBufferWorldDynamicAS[vk.swapchain.currentImage], NULL, VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV);
 	backEnd.refdef.floatTime = originalTime;
 	Com_Memcpy(&vk_d.bottomASTraceList[vk_d.bottomASTraceListCount], &vk_d.bottomASWorldDynamicAS[vk.swapchain.currentImage], sizeof(vkbottomAS_t));
 	vk_d.bottomASTraceListCount++;
@@ -423,7 +424,7 @@ static void RB_UpdateRayTraceAS(drawSurf_t* drawSurfs, int numDrawSurfs) {
 	VK_UploadBufferDataOffset(&vk_d.instanceBuffer[vk.swapchain.currentImage], vk_d.bottomASTraceListCount * sizeof(VkGeometryInstanceNV), sizeof(VkGeometryInstanceNV), (void*)&vk_d.bottomASWorldDynamicASTrans[vk.swapchain.currentImage].geometryInstance);
 	VK_UpdateBottomAS(vk.swapchain.CurrentCommandBuffer(), &vk_d.bottomASWorldDynamicASTrans[vk.swapchain.currentImage],
 		&vk_d.bottomASWorldDynamicASTrans[vk.swapchain.currentImage],
-		&vk_d.basBufferWorldDynamicAS, NULL, VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV);
+		&vk_d.basBufferWorldDynamicAS[vk.swapchain.currentImage], NULL, VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV);
 	backEnd.refdef.floatTime = originalTime;
 	Com_Memcpy(&vk_d.bottomASTraceList[vk_d.bottomASTraceListCount], &vk_d.bottomASWorldDynamicASTrans[vk.swapchain.currentImage], sizeof(vkbottomAS_t));
 	vk_d.bottomASTraceListCount++;
@@ -693,7 +694,7 @@ static void RB_UpdateRayTraceAS(drawSurf_t* drawSurfs, int numDrawSurfs) {
 	VK_UploadBufferDataOffset(&vk_d.prevToCurrInstanceBuffer[vk.swapchain.currentImage], 0, sizeof(vk_d.prevToCurrInstance), (void*)vk_d.prevToCurrInstance);
 
 	VK_DestroyTopAccelerationStructure(&vk_d.topAS[vk.swapchain.currentImage]);
-	VK_MakeTopAS(vk.swapchain.CurrentCommandBuffer(), &vk_d.topAS[vk.swapchain.currentImage], &vk_d.topASBuffer[vk.swapchain.currentImage], vk_d.bottomASTraceList, vk_d.bottomASTraceListCount, vk_d.instanceBuffer[vk.swapchain.currentImage], RTX_TOP_AS_FLAG);
+	VK_MakeTopAS(vk.swapchain.CurrentCommandBuffer(), &vk_d.topAS[vk.swapchain.currentImage], &vk_d.topASBuffer[vk.swapchain.currentImage], vk_d.bottomASTraceList, vk_d.bottomASTraceListCount, &vk_d.instanceBuffer[vk.swapchain.currentImage], RTX_TOP_AS_FLAG);
 
 
 	tess.numIndexes = 0;
@@ -770,8 +771,8 @@ static void RB_TraceRays() {
 	ubo->brightness = rt_brightness->value;
 	ubo->tonemappingReinhard = rt_tonemapping_reinhard->value;
 
-	ubo->width = vk.swapchain.extent.width;
-	ubo->height = vk.swapchain.extent.height;
+	ubo->width = vk.renderExtent.width;
+	ubo->height = vk.renderExtent.height;
 	ubo->mipmapLevel = vk_d.mipmapLevel;
 
 	ubo->illumination = rt_illumination->integer;
@@ -813,15 +814,15 @@ static void RB_TraceRays() {
 
 	float viewMatrix[16];
 	// viewMatrix (needs flip)
-	RB_BuildViewMatrix(&viewMatrix, &origin, &backEnd.viewParms. or .axis);
+	RB_BuildViewMatrix(viewMatrix, origin, backEnd.viewParms. or .axis);
 	// flip view matrix for vulkan
-	myGlMultMatrix(&viewMatrix, &s_flipMatrix, &ubo->viewMat);
+	myGlMultMatrix(viewMatrix, s_flipMatrix, ubo->viewMat);
 	// inverse view matrix
-	myGLInvertMatrix(&ubo->viewMat, &ubo->inverseViewMat);
+	myGLInvertMatrix(ubo->viewMat, ubo->inverseViewMat);
 	// projection matrix
-	RB_BuildProjMatrix(&ubo->projMat, backEnd.viewParms.projectionMatrix, backEnd.viewParms.zFar);
+	RB_BuildProjMatrix(ubo->projMat, backEnd.viewParms.projectionMatrix, backEnd.viewParms.zFar);
 	// inverse proj matrix
-	myGLInvertMatrix(&ubo->projMat, &ubo->inverseProjMat);
+	myGLInvertMatrix(ubo->projMat, ubo->inverseProjMat);
 	
 	// view portal
 	vec3_t	originPortal;	// portal position
@@ -833,24 +834,39 @@ static void RB_TraceRays() {
 		float	projMatrixPortal[16];
 
 		// portal inv view mat
-		RB_BuildViewMatrix(&viewMatrixPortal, &originPortal, &vk_d.portalViewParms. or .axis);
-		myGlMultMatrix(&viewMatrixPortal, &s_flipMatrix, &viewMatrixFlippedPortal);
-		myGLInvertMatrix(&viewMatrixFlippedPortal, &ubo->inverseViewMatPortal);
+		RB_BuildViewMatrix(viewMatrixPortal, originPortal, vk_d.portalViewParms. or .axis);
+		myGlMultMatrix(viewMatrixPortal, s_flipMatrix, viewMatrixFlippedPortal);
+		myGLInvertMatrix(viewMatrixFlippedPortal, ubo->inverseViewMatPortal);
 		// portal inv proj mat
-		RB_BuildProjMatrix(&projMatrixPortal, vk_d.portalViewParms.projectionMatrix, vk_d.portalViewParms.zFar);
-		myGLInvertMatrix(&projMatrixPortal, &ubo->inverseProjMatPortal);
+		RB_BuildProjMatrix(projMatrixPortal, vk_d.portalViewParms.projectionMatrix, vk_d.portalViewParms.zFar);
+		myGLInvertMatrix(projMatrixPortal, ubo->inverseProjMatPortal);
 	}
 	ubo->hasPortal = vk_d.portalInView;
 	// mvp
-	myGlMultMatrix(&ubo->viewMat[0], ubo->projMat, vk_d.mvp);
+	myGlMultMatrix(ubo->viewMat, ubo->projMat, vk_d.mvp);
 	VK_UploadBufferDataOffset(&vk_d.uboBuffer[vk.swapchain.currentImage], 0, sizeof(GlobalUbo), (void*)ubo);
 
 	VK_SetAccelerationStructure(&vk_d.rtxDescriptor[vk.swapchain.currentImage], BINDING_OFFSET_AS, VK_SHADER_STAGE_RAYGEN_BIT_NV, &vk_d.topAS[vk.swapchain.currentImage].accelerationStructure);
 	VK_UpdateDescriptorSet(&vk_d.rtxDescriptor[vk.swapchain.currentImage]);
+
+	if (VK_NGX_Available()) {
+		VK_NGX_CreateDLSS(vk.swapchain.CurrentCommandBuffer(),
+			vk.renderExtent.width, vk.renderExtent.height,
+			vk.renderMaxExtent.width, vk.renderMaxExtent.height);
+	}
 	
 	VK_ClearImage(&vk_d.asvgf[vk.swapchain.currentImage].gradSamplePos, (VkClearColorValue) { .uint32 = { 0, 0, 0, 0 } }, VK_IMAGE_LAYOUT_GENERAL);// VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	VK_ClearImage(&vk_d.asvgf[vk.swapchain.currentImage].debug, (VkClearColorValue) { .uint32 = { 0, 0, 0, 0 } }, VK_IMAGE_LAYOUT_GENERAL);// VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 	VK_ClearImage(&vk_d.gBuffer[vk.swapchain.currentImage].reflection, (VkClearColorValue) { .uint32 = { 0, 0, 0, 0 } }, VK_IMAGE_LAYOUT_GENERAL);// VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	qboolean dlssReset = vk.renderExtentChanged;
+	if (vk.renderExtentChanged) {
+		VkClearColorValue zero = { .float32 = { 0, 0, 0, 0 } };
+		VK_ClearImage(&vk_d.asvgf[vk.swapchain.currentImage].histColor, zero, VK_IMAGE_LAYOUT_GENERAL);
+		VK_ClearImage(&vk_d.asvgf[vk.swapchain.currentImage].histMoments, zero, VK_IMAGE_LAYOUT_GENERAL);
+		VK_ClearImage(&vk_d.asvgf[vk.swapchain.currentImage].taa, zero, VK_IMAGE_LAYOUT_GENERAL);
+		VK_ClearImage(&vk_d.accelerationStructures.accumulationImage[vk.swapchain.currentImage], zero, VK_IMAGE_LAYOUT_GENERAL);
+		vk.renderExtentChanged = qfalse;
+	}
 
 	BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].gradSamplePos.handle);
 	BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].debug.handle);
@@ -859,7 +875,7 @@ static void RB_TraceRays() {
 	PROFILER_SET_MARKER(vk.swapchain.CurrentCommandBuffer(), PROFILER_ASVGF_RNG_BEGIN);
 	VK_BindComputePipeline(&vk_d.accelerationStructures.asvgfRngPipeline);
 	VK_BindCompute2DescriptorSets(&vk_d.accelerationStructures.asvgfRngPipeline, &vk_d.computeDescriptor[vk.swapchain.currentImage], &vk_d.imageDescriptor);
-	VK_Dispatch((vk.swapchain.extent.width + 31) / 32, (vk.swapchain.extent.height + 31) / 32, 1);
+	VK_Dispatch((vk.renderExtent.width + 31) / 32, (vk.renderExtent.height + 31) / 32, 1);
 	PROFILER_SET_MARKER(vk.swapchain.CurrentCommandBuffer(), PROFILER_ASVGF_RNG_END);
 
 	BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].rngSeed.handle);
@@ -868,7 +884,7 @@ static void RB_TraceRays() {
 	PROFILER_SET_MARKER(vk.swapchain.CurrentCommandBuffer(), PROFILER_ASVGF_FORWARD_BEGIN);
 	VK_BindComputePipeline(&vk_d.accelerationStructures.asvgfFwdPipeline);
 	VK_BindCompute2DescriptorSets(&vk_d.accelerationStructures.asvgfFwdPipeline, &vk_d.computeDescriptor[vk.swapchain.currentImage], &vk_d.imageDescriptor);
-	VK_Dispatch((vk.swapchain.extent.width / GRAD_DWN + 31) / 32, (vk.swapchain.extent.height / GRAD_DWN + 31) / 32, 1);
+	VK_Dispatch((vk.renderExtent.width / GRAD_DWN + 31) / 32, (vk.renderExtent.height / GRAD_DWN + 31) / 32, 1);
 	PROFILER_SET_MARKER(vk.swapchain.CurrentCommandBuffer(), PROFILER_ASVGF_FORWARD_END);
 
 	BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].rngSeed.handle);
@@ -917,7 +933,7 @@ static void RB_TraceRays() {
 		PROFILER_SET_MARKER(vk.swapchain.CurrentCommandBuffer(), PROFILER_ASVGF_GRADIENT_BEGIN);
 		VK_BindComputePipeline(&vk_d.accelerationStructures.asvgfGradImgPipeline);
 		VK_BindCompute2DescriptorSets(&vk_d.accelerationStructures.asvgfGradImgPipeline, &vk_d.computeDescriptor[vk.swapchain.currentImage], &vk_d.imageDescriptor);
-		VK_Dispatch((vk.swapchain.extent.width / GRAD_DWN + 31) / 32, (vk.swapchain.extent.height / GRAD_DWN + 31) / 32, 1);
+		VK_Dispatch((vk.renderExtent.width / GRAD_DWN + 31) / 32, (vk.renderExtent.height / GRAD_DWN + 31) / 32, 1);
 		PROFILER_SET_MARKER(vk.swapchain.CurrentCommandBuffer(), PROFILER_ASVGF_GRADIENT_END);
 
 		BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].gradA.handle);
@@ -928,7 +944,7 @@ static void RB_TraceRays() {
 		const int num_atrous_iterations_gradient = 5;
 		for (uint32_t i = 0; i < num_atrous_iterations_gradient; i++) {
 			VK_SetComputePushConstant(&vk_d.accelerationStructures.asvgfGradAtrousPipeline, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(uint32_t), &i);
-			VK_Dispatch((vk.swapchain.extent.width / GRAD_DWN + 31) / 32, (vk.swapchain.extent.height / GRAD_DWN + 31) / 32, 1);
+			VK_Dispatch((vk.renderExtent.width / GRAD_DWN + 31) / 32, (vk.renderExtent.height / GRAD_DWN + 31) / 32, 1);
 			BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].gradA.handle);
 			BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].gradB.handle);
 		}
@@ -938,7 +954,7 @@ static void RB_TraceRays() {
 		PROFILER_SET_MARKER(vk.swapchain.CurrentCommandBuffer(), PROFILER_ASVGF_TEMPORAL_BEGIN);
 		VK_BindComputePipeline(&vk_d.accelerationStructures.asvgfTemporalPipeline);
 		VK_BindCompute2DescriptorSets(&vk_d.accelerationStructures.asvgfTemporalPipeline, &vk_d.computeDescriptor[vk.swapchain.currentImage], &vk_d.imageDescriptor);
-		VK_Dispatch((vk.swapchain.extent.width + 31) / 32, (vk.swapchain.extent.height + 31) / 32, 1);
+		VK_Dispatch((vk.renderExtent.width + 31) / 32, (vk.renderExtent.height + 31) / 32, 1);
 		PROFILER_SET_MARKER(vk.swapchain.CurrentCommandBuffer(), PROFILER_ASVGF_TEMPORAL_END);
 
 		BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].atrousA.handle);
@@ -953,7 +969,7 @@ static void RB_TraceRays() {
 		const int num_atrous_iterations = 5;
 		for (uint32_t i = 0; i < 5; i++) {
 			VK_SetComputePushConstant(&vk_d.accelerationStructures.asvgfAtrousPipeline, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(uint32_t), &i);
-			VK_Dispatch((vk.swapchain.extent.width + 31) / 32, (vk.swapchain.extent.height + 31) / 32, 1);
+			VK_Dispatch((vk.renderExtent.width + 31) / 32, (vk.renderExtent.height + 31) / 32, 1);
 			BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].atrousA.handle);
 			BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].atrousB.handle);
 			BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].histColor.handle);
@@ -967,7 +983,7 @@ static void RB_TraceRays() {
 		//	VK_BindCompute2DescriptorSets(&vk_d.accelerationStructures.asvgfAtrousLFPipeline, &vk_d.computeDescriptor[vk.swapchain.currentImage], &vk_d.imageDescriptor);
 		//	for (uint32_t i = 0; i < 4; i++) {
 		//		VK_SetComputePushConstant(&vk_d.accelerationStructures.asvgfAtrousLFPipeline, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(uint32_t), &i);
-		//		VK_Dispatch((vk.swapchain.extent.width + 31) / 32, (vk.swapchain.extent.height + 31) / 32, 1);
+		//		VK_Dispatch((vk.renderExtent.width + 31) / 32, (vk.renderExtent.height + 31) / 32, 1);
 		//		BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].atrousA.handle);
 		//		BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].atrousB.handle);
 		//		BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].histColor.handle);
@@ -979,7 +995,7 @@ static void RB_TraceRays() {
 	// compositing
 	VK_BindComputePipeline(&vk_d.accelerationStructures.compositingPipeline);
 	VK_BindCompute2DescriptorSets(&vk_d.accelerationStructures.compositingPipeline, &vk_d.computeDescriptor[vk.swapchain.currentImage], &vk_d.imageDescriptor);
-	VK_Dispatch((vk.swapchain.extent.width + 31) / 32, (vk.swapchain.extent.height + 31) / 32, 1);
+	VK_Dispatch((vk.renderExtent.width + 31) / 32, (vk.renderExtent.height + 31) / 32, 1);
 	BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].color.handle);
 	
 	
@@ -990,19 +1006,20 @@ static void RB_TraceRays() {
 		PROFILER_SET_MARKER(vk.swapchain.CurrentCommandBuffer(), PROFILER_ASVGF_TAA_BEGIN);
 		VK_BindComputePipeline(&vk_d.accelerationStructures.asvgfTaaPipeline);
 		VK_BindCompute2DescriptorSets(&vk_d.accelerationStructures.asvgfTaaPipeline, &vk_d.computeDescriptor[vk.swapchain.currentImage], &vk_d.imageDescriptor);
-		VK_Dispatch((vk.swapchain.extent.width + 31) / 32, (vk.swapchain.extent.height + 31) / 32, 1);
+		VK_Dispatch((vk.renderExtent.width + 31) / 32, (vk.renderExtent.height + 31) / 32, 1);
 		PROFILER_SET_MARKER(vk.swapchain.CurrentCommandBuffer(), PROFILER_ASVGF_TAA_END);
 	}
 
 	BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.gBuffer[vk.swapchain.currentImage].transparent.handle);
 	BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.gBuffer[vk.swapchain.currentImage].viewDir.handle);
-	if (rt_tonemapping_reinhard->value == 1) {
+	qboolean tonemap = (rt_tonemapping_reinhard->value == 1) || VK_NGX_Active();
+	if (tonemap) {
 		BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.asvgf[vk.swapchain.currentImage].taa.handle);
 		for (uint32_t i = 0; i < vk_d.mipmapLevel; i++) {
 			VK_BindComputePipeline(&vk_d.accelerationStructures.maxmipmapPipeline);
 			VK_BindCompute2DescriptorSets(&vk_d.accelerationStructures.maxmipmapPipeline, &vk_d.computeDescriptor[vk.swapchain.currentImage], &vk_d.imageDescriptor);
 			VK_SetComputePushConstant(&vk_d.accelerationStructures.maxmipmapPipeline, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(uint32_t), &i);
-			VK_Dispatch((vk.swapchain.extent.width) / (2 * (i + 1)), (vk.swapchain.extent.height) / (2 * (i + 1)), 1);
+			VK_Dispatch((vk.renderExtent.width) / (2 * (i + 1)), (vk.renderExtent.height) / (2 * (i + 1)), 1);
 			BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.gBuffer[vk.swapchain.currentImage].maxmipmap.handle);
 		}
 
@@ -1011,7 +1028,30 @@ static void RB_TraceRays() {
 		VK_BindCompute2DescriptorSets(&vk_d.accelerationStructures.tonemappingPipeline, &vk_d.computeDescriptor[vk.swapchain.currentImage], &vk_d.imageDescriptor);
 		int a = vk_d.mipmapLevel - 1;
 		VK_SetComputePushConstant(&vk_d.accelerationStructures.tonemappingPipeline, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(uint32_t), &a);
-		VK_Dispatch((vk.swapchain.extent.width), (vk.swapchain.extent.height), 1);
+		VK_Dispatch((vk.renderExtent.width), (vk.renderExtent.height), 1);
+	}
+
+	if (VK_NGX_Active()) {
+		VkMemoryBarrier ngxBarrier = { 0 };
+		ngxBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+		ngxBarrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+		ngxBarrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT;
+		vkCmdPipelineBarrier(vk.swapchain.CurrentCommandBuffer(),
+			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+			0, 1, &ngxBarrier, 0, NULL, 0, NULL);
+
+		BARRIER_COMPUTE(vk.swapchain.CurrentCommandBuffer(), vk_d.gBuffer[vk.swapchain.currentImage].depthNormal.handle);
+
+		VK_NGX_EvaluateDLSS(vk.swapchain.CurrentCommandBuffer(),
+			&vk_d.gBuffer[vk.swapchain.currentImage].result, VK_FORMAT_R32G32B32A32_SFLOAT,
+			&vk_d.gBuffer[vk.swapchain.currentImage].depthNormal, VK_FORMAT_R32G32_SFLOAT,
+			&vk_d.gBuffer[vk.swapchain.currentImage].motion, VK_FORMAT_R16G16B16A16_SFLOAT,
+			&vk_d.accelerationStructures.dlssOutput[vk.swapchain.currentImage], VK_FORMAT_R16G16B16A16_SFLOAT,
+			dlssReset);
+
+		vkCmdPipelineBarrier(vk.swapchain.CurrentCommandBuffer(),
+			VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+			0, 1, &ngxBarrier, 0, NULL, 0, NULL);
 	}
 
 }
@@ -1050,7 +1090,7 @@ static void drawCluster() {
 		//if (i != 1333) continue;
 		uint32_t offset = vertexCount;
 		for (uint32_t idx = 0; idx < 8; idx++) {
-			get_aabb_corner(vk_d.clusterList[i].mins, vk_d.clusterList[i].maxs, idx, &points[idx]);
+			get_aabb_corner(vk_d.clusterList[i].mins, vk_d.clusterList[i].maxs, idx, points[idx]);
 			Com_Memcpy(&colors[vertexCount + idx], &color, sizeof(color4ub_t));
 		}
 		Com_Memcpy(&xyz[vertexCount], &points[0], 8 * sizeof(vec4_t));
@@ -1108,6 +1148,7 @@ void RB_RayTraceScene(drawSurf_t* drawSurfs, int numDrawSurfs) {
 	vk_d.bottomASTraceListCount = 0; 
 	// reset performance marker query
 	VK_ResetPerformanceQueryPool(vk.swapchain.CurrentCommandBuffer());
+	PROFILER_SET_MARKER(vk.swapchain.CurrentCommandBuffer(), PROFILER_FRAME_BEGIN);
 
 	PROFILER_SET_MARKER(vk.swapchain.CurrentCommandBuffer(), PROFILER_BUILD_AS_BEGIN);
 	RB_UpdateRayTraceAS(drawSurfs, numDrawSurfs);
@@ -1137,8 +1178,20 @@ void RB_RayTraceScene(drawSurf_t* drawSurfs, int numDrawSurfs) {
 	//vkimage_t* drawImage = &vk_d.gBuffer[vk.swapchain.currentImage].indirectIllumination;
 	//vkimage_t* drawImage = &vk_d.asvgf[vk.swapchain.currentImage].debug;
 	//vkimage_t* drawImage = &vk_d.asvgf[vk.swapchain.currentImage].atrousA;
-	if(rt_tonemapping_reinhard->value == 1) drawImage = &vk_d.gBuffer[vk.swapchain.currentImage].result;
-	else drawImage = &vk_d.asvgf[vk.swapchain.currentImage].taa;
+	uint32_t drawWidth, drawHeight;
+	if (VK_NGX_Active()) {
+		drawImage = &vk_d.accelerationStructures.dlssOutput[vk.swapchain.currentImage];
+		drawWidth = vk.renderMaxExtent.width;
+		drawHeight = vk.renderMaxExtent.height;
+	} else if(rt_tonemapping_reinhard->value == 1) {
+		drawImage = &vk_d.gBuffer[vk.swapchain.currentImage].result;
+		drawWidth = vk.renderExtent.width;
+		drawHeight = vk.renderExtent.height;
+	} else {
+		drawImage = &vk_d.asvgf[vk.swapchain.currentImage].taa;
+		drawWidth = vk.renderExtent.width;
+		drawHeight = vk.renderExtent.height;
+	}
 	//vkimage_t* drawImage = &vk_d.gBuffer[vk.swapchain.currentImage].transparent;
 	//vkimage_t* drawImage = &vk_d.asvgf[vk.swapchain.currentImage].color;
 	//vkimage_t* drawImage = &vk_d.asvgf[vk.swapchain.currentImage].gradSamplePos;
@@ -1150,7 +1203,8 @@ void RB_RayTraceScene(drawSurf_t* drawSurfs, int numDrawSurfs) {
 			VK_FinishDescriptor(&drawImage->descriptor_set);
 		}	
 	}
-	VK_DrawFullscreenRect(drawImage);
+	VK_DrawFullscreenRectScaled(drawImage, drawWidth, drawHeight);
+	PROFILER_SET_MARKER(vk.swapchain.CurrentCommandBuffer(), PROFILER_FRAME_END);
 
 	if (r_showcluster->integer) drawCluster();
 	

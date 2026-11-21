@@ -32,6 +32,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "qvk.h"
 #include "../../shader/glsl/constants.h"
 
+#ifndef max
+#define max(a,b) (((a) > (b)) ? (a) : (b))
+#endif
+#ifndef min
+#define min(a,b) (((a) < (b)) ? (a) : (b))
+#endif
+
 #define GL_INDEX_TYPE		GL_UNSIGNED_INT
 typedef unsigned int glIndex_t;
 
@@ -1176,6 +1183,9 @@ typedef struct {
 	VkCommandPool				commandPool;
 
 	vkswapchain_t				swapchain;
+	VkExtent2D					renderMaxExtent;
+	qboolean					renderExtentChanged;
+	VkExtent2D					renderExtent;
 #ifndef NDEBUG
 	VkDebugUtilsMessengerEXT	callback;
 #endif
@@ -1290,6 +1300,7 @@ typedef struct {
 	vkimage_t					rngImage;
 
 	vkimage_t					resultImage[VK_MAX_SWAPCHAIN_SIZE];
+	vkimage_t					dlssOutput[VK_MAX_SWAPCHAIN_SIZE];
 	vkimage_t					accumulationImage[VK_MAX_SWAPCHAIN_SIZE];
 	vkimage_t					visData;
 	vkimage_t					lightVisData;
@@ -1300,9 +1311,9 @@ typedef struct {
 typedef struct {
 	VkSurfaceCapabilitiesKHR	capabilities;
 	uint32_t					formatCount;
-	VkSurfaceFormatKHR			formats[VK_MAX_SURFACE_FORMAT_ARRAY_SIZE];
+	VkSurfaceFormatKHR			*formats;
 	uint32_t					presentModeCount;
-	VkPresentModeKHR			presentModes[VK_MAX_SURFACE_FORMAT_ARRAY_SIZE];
+	VkPresentModeKHR			*presentModes;
 } swapChainSupportDetails_t;
 
 typedef struct {
@@ -1467,6 +1478,8 @@ typedef enum {
 	PROFILER_ASVGF_ATROUS_END,
 	PROFILER_ASVGF_TAA_BEGIN,
 	PROFILER_ASVGF_TAA_END,
+	PROFILER_FRAME_BEGIN,
+	PROFILER_FRAME_END,
 	PROFILER_IN_FLIGHT
 } vkprofiler_e;
 
@@ -1510,6 +1523,7 @@ typedef struct {
 	vkpipe_t			pipelineList[VK_MAX_NUM_PIPELINES];
 
 	vkpipeline_t        fullscreenRectPipeline;
+	vkpipeline_t        upscaleRectPipeline;
 
 	// state is used to define a pipeline
     vkrenderState_t     state;
@@ -1637,6 +1651,7 @@ typedef struct {
 
 extern vkinstance_t		vk;
 extern vkdata_t         vk_d;
+extern qboolean         vk_raytracing_enabled;
 
 /*
 ==============================================================================
@@ -1787,6 +1802,8 @@ extern	cvar_t  *rt_softshadows;
 extern	cvar_t  *rt_numSamples;
 extern	cvar_t  *rt_maxSamples;
 extern  cvar_t  *rt_taa;
+extern  cvar_t  *r_rtxAdaptive;
+extern  cvar_t  *r_upscaler;
 extern	cvar_t  *rt_denoiser;
 extern  cvar_t  *rt_brightness;
 extern	cvar_t* rt_tonemapping_reinhard;
@@ -1959,6 +1976,8 @@ IMPLEMENTATION SPECIFIC FUNCTIONS
 */
 
 void		GLimp_Init( void );
+void		VKimp_Init( void );
+void		VKimp_Shutdown( void );
 void		GLimp_Shutdown( void );
 void		GLimp_EndFrame( void );
 
@@ -2340,5 +2359,7 @@ void R_InitFreeType();
 void R_DoneFreeType();
 void RE_RegisterFont(const char *fontName, int pointSize, fontInfo_t *font);
 
+
+#include "tr_decls.h"
 
 #endif //TR_LOCAL_H

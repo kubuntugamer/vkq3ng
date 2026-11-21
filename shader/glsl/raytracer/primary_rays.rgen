@@ -5,7 +5,7 @@
 #pragma optionNV (unroll all)
 #include "../constants.h"
 #include "defines.glsl"
-#include "rt_helper.glsl"
+#include "rt_Helper.glsl"
 #include "sky.glsl"
 #include "random.glsl"
 #include "globalTexture.glsl"
@@ -39,6 +39,7 @@ struct PrimaryRayHit{
 	uint material;
 	vec4 motion;
 	float depth;
+	float dlssDepth;
 	vec4 object;
 } hitData;
 
@@ -212,6 +213,7 @@ void shootPrimaryRay(Ray ray, vec2 sccs){
 		hitData.motion = vec4(-1);
 		hitData.motion.w = 9999.0;
 		hitData.depth = -999;
+		hitData.dlssDepth = 1.0;
 		hitData.normal.xyz = vec3(0,0,1);
 		hitData.object = vec4(-1, -1, uintBitsToFloat(uvec2(~0u)));
 	} else {
@@ -249,6 +251,7 @@ void shootPrimaryRay(Ray ray, vec2 sccs){
 		//vec3 pointView = (ubo.viewMat * vec4(hitData.pos.xyz, 1.0));
 		//vec3 pointViewPrev = (uboPrev.viewMat * vec4(getPrevPos(rp),1.0));
 		vec4 point = ubo.projMat * ubo.viewMat * vec4(hitData.pos.xyz, 1.0);
+		hitData.dlssDepth = point.z / max(point.w, 1e-6);
 		vec4 pointPrev = uboPrev.projMat * uboPrev.viewMat * vec4(getPrevPos(rp),1.0);
 		vec3 ndc = point.xyw;
 		vec3 ndcPrev = pointPrev.xyw;
@@ -298,6 +301,7 @@ void main()
 	imageStore(posGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(hitData.pos.xyz, hitData.cluster));
 	imageStore(viewGBuffer, ivec2(gl_LaunchIDNV.xy), vec4(ray.direction.xyz, hitData.material));
 	imageStore(motionGBuffer, ivec2(gl_LaunchIDNV.xy), hitData.motion);
+	imageStore(IMG_GBUFFER_DEPTH_NORMAL, ivec2(gl_LaunchIDNV.xy), vec4(hitData.dlssDepth, 0.0, 0.0, 0.0));
 
 	
 }

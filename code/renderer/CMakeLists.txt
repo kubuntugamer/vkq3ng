@@ -30,11 +30,16 @@ include_directories(${CMAKE_SOURCE_DIR}/external/TinyJPEG)
 if(APPLE)
     include_directories(${CMAKE_SOURCE_DIR}/code/macos)
 else(UNIX)
-
+    add_definitions(-D__linux__ -D__linux)
 endif()
 
 # LIB
 add_library(${LIB_RENDERER} STATIC ${SOURCES})
 target_link_libraries(${LIB_RENDERER} "${OPENGL_LIBRARIES}")
 target_link_libraries(${LIB_RENDERER} Vulkan::Vulkan)
+if(UNIX AND NOT APPLE)
+    # NVIDIA NGX loader shim (dlopen()s the installed driver library at runtime).
+    target_include_directories(${LIB_RENDERER} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/vulkan/ngx/include")
+    target_link_libraries(${LIB_RENDERER} "${CMAKE_CURRENT_SOURCE_DIR}/vulkan/ngx/lib/Linux_x86_64/libnvsdk_ngx.a" dl stdc++)
+endif()
 set_target_properties(${LIB_RENDERER} PROPERTIES LINKER_LANGUAGE C)
