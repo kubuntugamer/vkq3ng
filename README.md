@@ -34,7 +34,7 @@ It still uses your own Quake III Arena data files. No game assets are included.
 |:--:|:--:|
 | ![q3dm8](images/fork-q3dm8.png) | ![q3dm1](images/fork-q3dm1.png) |
 
-Screenshots are from the current `reforged` build. RTX was rendered with DLSS and Reflex
+Screenshots are from the current `vkq3ng` build. RTX was rendered with DLSS and Reflex
 enabled; the HUD and weapon are part of normal gameplay.
 
 ## Requirements
