@@ -174,6 +174,8 @@ cvar_t* r_upscaler;
 cvar_t* r_rtxAdaptive;
 cvar_t* r_rtxMaxPixels;
 cvar_t* r_dlss;
+cvar_t* r_reflex;
+cvar_t* r_reflexBoost;
 cvar_t* rt_aperture;
 cvar_t* rt_focalLength;
 cvar_t* rt_dof;
@@ -1490,6 +1492,8 @@ void R_Register( void )
 	rt_softshadows = ri.Cvar_Get("rt_softshadows", "1", 0);
 	rt_taa = ri.Cvar_Get("rt_taa", "1", 0);
 	r_dlss = ri.Cvar_Get("r_dlss", "1", CVAR_ARCHIVE);
+	r_reflex = ri.Cvar_Get("r_reflex", "1", CVAR_ARCHIVE);
+	r_reflexBoost = ri.Cvar_Get("r_reflexBoost", "1", CVAR_ARCHIVE);
 	r_rtxMaxPixels = ri.Cvar_Get("r_rtxMaxPixels", "0", CVAR_ARCHIVE);
 	r_upscaler = ri.Cvar_Get("r_upscaler", "1", CVAR_ARCHIVE);
 	r_rtxAdaptive = ri.Cvar_Get("r_rtxAdaptive", "1", CVAR_ARCHIVE);
@@ -1888,6 +1892,8 @@ refexport_t *GetRefAPI ( int apiVersion, refimport_t *rimp ) {
 
 	re.BeginFrame = RE_BeginFrame;
 	re.EndFrame = RE_EndFrame;
+	re.ReflexSimulationStart = RE_ReflexSimulationStart;
+	re.ReflexSimulationEnd = RE_ReflexSimulationEnd;
 
 	re.MarkFragments = R_MarkFragments;
 	re.LerpTag = R_LerpTag;

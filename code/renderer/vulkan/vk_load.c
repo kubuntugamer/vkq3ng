@@ -89,6 +89,11 @@ qboolean VK_LoadDeviceFunctions(void)
 	vkQueueWaitIdle = VK_DEVICE_LEVEL_FUNCTION(vkQueueWaitIdle);
 	vkQueuePresentKHR = VK_DEVICE_LEVEL_FUNCTION(vkQueuePresentKHR);
 
+	/* Optional timeline-semaphore wait; needed by Reflex sleep. */
+	vkWaitSemaphores = (PFN_vkWaitSemaphores)vkGetDeviceProcAddr(vk.device, "vkWaitSemaphores");
+	if (!vkWaitSemaphores)
+		vkWaitSemaphores = (PFN_vkWaitSemaphores)vkGetDeviceProcAddr(vk.device, "vkWaitSemaphoresKHR");
+
 	vkCmdBeginRenderPass = VK_DEVICE_LEVEL_FUNCTION(vkCmdBeginRenderPass);
 	vkCmdSetViewport = VK_DEVICE_LEVEL_FUNCTION(vkCmdSetViewport);
 	vkCmdSetScissor = VK_DEVICE_LEVEL_FUNCTION(vkCmdSetScissor);

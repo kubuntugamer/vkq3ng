@@ -20,6 +20,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
 #include "tr_local.h"
+#include "vulkan/vk_reflex.h"
 
 volatile renderCommandList_t	*renderCommandList;
 
@@ -411,6 +412,18 @@ void RE_BeginFrame( stereoFrame_t stereoFrame ) {
 	}
 }
 
+
+void RE_ReflexSimulationStart( void ) {
+	if ( glConfig.driverType == VULKAN ) {
+		VK_Reflex_SimulationStart();
+	}
+}
+
+void RE_ReflexSimulationEnd( void ) {
+	if ( glConfig.driverType == VULKAN ) {
+		VK_Reflex_SimulationEnd();
+	}
+}
 
 /*
 =============

@@ -2000,6 +2000,10 @@ void CL_Frame ( int msec ) {
 		return;
 	}
 
+	if ( re.ReflexSimulationStart ) {
+		re.ReflexSimulationStart();
+	}
+
 	if ( cls.cddialog ) {
 		// bring up the cd error dialog if needed
 		cls.cddialog = qfalse;
@@ -2051,6 +2055,10 @@ void CL_Frame ( int msec ) {
 
 	// decide on the serverTime to render
 	CL_SetCGameTime();
+
+	if ( re.ReflexSimulationEnd ) {
+		re.ReflexSimulationEnd();
+	}
 
 	// update the screen
 	SCR_UpdateScreen();

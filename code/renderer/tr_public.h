@@ -82,6 +82,10 @@ typedef struct {
 	// if the pointers are not NULL, timing info will be returned
 	void	(*EndFrame)( int *frontEndMsec, int *backEndMsec );
 
+	// NVIDIA Reflex frame boundaries (no-ops unless Vulkan + Reflex is active)
+	void	(*ReflexSimulationStart)( void );
+	void	(*ReflexSimulationEnd)( void );
+
 
 	int		(*MarkFragments)( int numPoints, const vec3_t *points, const vec3_t projection,
 				   int maxPoints, vec3_t pointBuffer, int maxFragments, markFragment_t *fragmentBuffer );

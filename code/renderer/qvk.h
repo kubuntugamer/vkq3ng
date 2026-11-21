@@ -129,6 +129,7 @@ PFN_vkCreateFramebuffer							vkCreateFramebuffer;
 PFN_vkAllocateCommandBuffers					vkAllocateCommandBuffers;
 PFN_vkCreateSemaphore							vkCreateSemaphore;
 PFN_vkCreateFence								vkCreateFence;
+PFN_vkWaitSemaphores							vkWaitSemaphores;
 
 PFN_vkWaitForFences								vkWaitForFences;
 PFN_vkResetFences								vkResetFences;
@@ -140,6 +141,13 @@ PFN_vkEndCommandBuffer							vkEndCommandBuffer;
 PFN_vkQueueSubmit								vkQueueSubmit;
 PFN_vkQueueWaitIdle								vkQueueWaitIdle;
 PFN_vkQueuePresentKHR							vkQueuePresentKHR;
+
+/* NVIDIA Reflex (VK_NV_low_latency2), resolved lazily */
+PFN_vkSetLatencySleepModeNV						vkSetLatencySleepModeNV;
+PFN_vkLatencySleepNV							vkLatencySleepNV;
+PFN_vkSetLatencyMarkerNV						vkSetLatencyMarkerNV;
+PFN_vkGetLatencyTimingsNV						vkGetLatencyTimingsNV;
+PFN_vkQueueNotifyOutOfBandNV					vkQueueNotifyOutOfBandNV;
 
 PFN_vkCmdBeginRenderPass						vkCmdBeginRenderPass;
 PFN_vkCmdSetViewport							vkCmdSetViewport;

@@ -1,4 +1,5 @@
 #include "../tr_local.h"
+#include "vk_reflex.h"
 #include <stdlib.h>
 
 #define min(a,b) (((a)<(b))?(a):(b))
@@ -142,6 +143,13 @@ static void VK_CreateSwapChain() {
 	createInfo.presentMode = presentMode;
 	createInfo.clipped = VK_TRUE;
 	createInfo.oldSwapchain = VK_NULL_HANDLE;
+
+	VkSwapchainLatencyCreateInfoNV latencyCreateInfo = { 0 };
+	if (vk_low_latency_enabled) {
+		latencyCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_LATENCY_CREATE_INFO_NV;
+		latencyCreateInfo.latencyModeEnable = VK_TRUE;
+		createInfo.pNext = &latencyCreateInfo;
+	}
 
 	VK_CHECK(vkCreateSwapchainKHR(vk.device, &createInfo, NULL, &vk.swapchain.handle), "failed to create Swapchain!");
 
@@ -433,7 +441,17 @@ void VK_EndFrame()
 	submitInfo.signalSemaphoreCount = sizeof(signalSemaphores) / sizeof(VkSemaphore);
 	submitInfo.pSignalSemaphores = &signalSemaphores[0];
 
+	VK_Reflex_RenderSubmitStart();
+	uint64_t reflexPresentId = VK_Reflex_PresentId();
+	VkLatencySubmissionPresentIdNV latencySubmission = { 0 };
+	if (reflexPresentId) {
+		latencySubmission.sType = VK_STRUCTURE_TYPE_LATENCY_SUBMISSION_PRESENT_ID_NV;
+		latencySubmission.presentID = reflexPresentId;
+		submitInfo.pNext = &latencySubmission;
+	}
+
 	VK_CHECK(vkQueueSubmit(vk.graphicsQueue, 1, &submitInfo, vk.swapchain.inFlightFences[vk.swapchain.currentImage]), "failed to submit draw command buffer!");
+	VK_Reflex_RenderSubmitEnd();
 	//VK_CHECK(vkQueueWaitIdle(vk.graphicsQueue), "failed to wait for Queue execution!");
 
 	VkSwapchainKHR swapChains[] = { vk.swapchain.handle };
@@ -446,7 +464,17 @@ void VK_EndFrame()
 	presentInfo.pSwapchains = swapChains;
 	presentInfo.pImageIndices = &vk.swapchain.currentImage;
 
+	VkPresentIdKHR presentIdInfo = { 0 };
+	if (reflexPresentId) {
+		presentIdInfo.sType = VK_STRUCTURE_TYPE_PRESENT_ID_KHR;
+		presentIdInfo.swapchainCount = 1;
+		presentIdInfo.pPresentIds = &reflexPresentId;
+		presentInfo.pNext = &presentIdInfo;
+	}
+
+	VK_Reflex_PresentStart();
 	VK_CHECK(vkQueuePresentKHR(vk.presentQueue, &presentInfo), "failed to Queue Present!");
+	VK_Reflex_PresentEnd();
 
 	vk.swapchain.lastFrame = vk.swapchain.currentFrame;
 	vk.swapchain.currentFrame = (vk.swapchain.currentFrame + 1) % vk.swapchain.imageCount;

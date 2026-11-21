@@ -1,6 +1,7 @@
 
 #include "../tr_local.h"
 #include "vk_ngx.h"
+#include "vk_reflex.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -80,6 +81,9 @@ qboolean VK_Setup(void* p1, void* p2) {
     
     // Create Swapchain
 	VK_SetupSwapchain();
+	// NVIDIA Reflex: extensions are already enabled on the device.
+	VK_Reflex_Init(vk.device, vk.physicalDevice);
+	VK_Reflex_AttachSwapchain(vk.swapchain.handle);
 	// For Performance Marker
 	VK_SetupQueryPool();
 	return qtrue;
@@ -90,6 +94,7 @@ void VK_Destroy() {
 
 	VK_NGX_Shutdown(vk.device);
 	VK_DestroySwapchain();
+	VK_Reflex_Shutdown(vk.device);
 
 	vkDestroyQueryPool(vk.device, vk.queryPool, NULL);
 	vkDestroyCommandPool(vk.device, vk.commandPool, NULL);
@@ -180,6 +185,8 @@ static void VK_CreateInstance() {
 static qboolean vk_use_wayland_surface = qfalse;
 static qboolean vk_raytracing_requested = qfalse;
 qboolean vk_raytracing_enabled = qfalse;
+qboolean vk_low_latency_enabled = qfalse;
+extern cvar_t *r_reflex;
 
 void VK_SetWaylandSurface(void) {
 	vk_use_wayland_surface = qtrue;
@@ -336,25 +343,48 @@ static void VK_CreateLogicalDevice()
 	VkExtensionProperties *availableExtensions = malloc(availableExtensionCount * sizeof(VkExtensionProperties));
 	vkEnumerateDeviceExtensionProperties(vk.physicalDevice, NULL, &availableExtensionCount, availableExtensions);
 	qboolean ngxExtensions = qfalse;
-	if (vk_raytracing_enabled) {
+	qboolean lowLatencyExtensions = qfalse;
+	{
 		qboolean hasBinaryImport = qfalse, hasImageViewHandle = qfalse, hasBufferAddress = qfalse, hasPushDescriptor = qfalse;
+		qboolean hasLowLatency = qfalse, hasPresentId = qfalse, hasTimeline = qfalse;
 		for (uint32_t i = 0; i < availableExtensionCount; i++) {
-			if (!strcmp(availableExtensions[i].extensionName, VK_NVX_BINARY_IMPORT_EXTENSION_NAME)) hasBinaryImport = qtrue;
-			if (!strcmp(availableExtensions[i].extensionName, VK_NVX_IMAGE_VIEW_HANDLE_EXTENSION_NAME)) hasImageViewHandle = qtrue;
-			if (!strcmp(availableExtensions[i].extensionName, VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME)) hasBufferAddress = qtrue;
-			if (!strcmp(availableExtensions[i].extensionName, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME)) hasPushDescriptor = qtrue;
+			const char *name = availableExtensions[i].extensionName;
+			if (!strcmp(name, VK_NVX_BINARY_IMPORT_EXTENSION_NAME)) hasBinaryImport = qtrue;
+			if (!strcmp(name, VK_NVX_IMAGE_VIEW_HANDLE_EXTENSION_NAME)) hasImageViewHandle = qtrue;
+			if (!strcmp(name, VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME)) hasBufferAddress = qtrue;
+			if (!strcmp(name, VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME)) hasPushDescriptor = qtrue;
+			if (!strcmp(name, VK_NV_LOW_LATENCY_2_EXTENSION_NAME)) hasLowLatency = qtrue;
+			if (!strcmp(name, VK_KHR_PRESENT_ID_EXTENSION_NAME)) hasPresentId = qtrue;
+			if (!strcmp(name, VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME)) hasTimeline = qtrue;
 		}
-		ngxExtensions = hasBinaryImport && hasImageViewHandle && hasBufferAddress && hasPushDescriptor;
+		ngxExtensions = vk_raytracing_enabled && hasBinaryImport && hasImageViewHandle && hasBufferAddress && hasPushDescriptor;
+		lowLatencyExtensions = hasLowLatency && hasPresentId && hasTimeline &&
+			(!r_reflex || r_reflex->integer);
 	}
 	free(availableExtensions);
+	vk_low_latency_enabled = lowLatencyExtensions;
 
 	VkPhysicalDeviceBufferDeviceAddressFeatures bufferDeviceAddressFeatures = { 0 };
 	bufferDeviceAddressFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES;
 	bufferDeviceAddressFeatures.bufferDeviceAddress = ngxExtensions ? VK_TRUE : VK_FALSE;
 
+	VkPhysicalDevicePresentIdFeaturesKHR presentIdFeatures = { 0 };
+	presentIdFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PRESENT_ID_FEATURES_KHR;
+	presentIdFeatures.presentId = lowLatencyExtensions ? VK_TRUE : VK_FALSE;
+
+	VkPhysicalDeviceTimelineSemaphoreFeatures timelineFeatures = { 0 };
+	timelineFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES;
+	timelineFeatures.timelineSemaphore = lowLatencyExtensions ? VK_TRUE : VK_FALSE;
+
 	VkPhysicalDeviceFeatures2 device_features = { 0 };
 	device_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR;
 	device_features.pNext = &indexingFeatures;
+	if (lowLatencyExtensions) {
+		timelineFeatures.pNext = device_features.pNext;
+		device_features.pNext = &timelineFeatures;
+		presentIdFeatures.pNext = device_features.pNext;
+		device_features.pNext = &presentIdFeatures;
+	}
 	if (ngxExtensions) {
 		bufferDeviceAddressFeatures.pNext = device_features.pNext;
 		device_features.pNext = &bufferDeviceAddressFeatures;
@@ -381,6 +411,11 @@ static void VK_CreateLogicalDevice()
 			enabledExtensions[enabledExtensionCount++] = VK_NVX_IMAGE_VIEW_HANDLE_EXTENSION_NAME;
 			enabledExtensions[enabledExtensionCount++] = VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME;
 			enabledExtensions[enabledExtensionCount++] = VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME;
+		}
+		if (lowLatencyExtensions) {
+			enabledExtensions[enabledExtensionCount++] = VK_NV_LOW_LATENCY_2_EXTENSION_NAME;
+			enabledExtensions[enabledExtensionCount++] = VK_KHR_PRESENT_ID_EXTENSION_NAME;
+			enabledExtensions[enabledExtensionCount++] = VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME;
 		}
 		desc.enabledExtensionCount = enabledExtensionCount;
 		desc.ppEnabledExtensionNames = enabledExtensions;
