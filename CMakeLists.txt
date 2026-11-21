@@ -89,6 +89,7 @@ else(UNIX)
 	#find_package(Threads REQUIRED)
 	#add_definitions(-DVK_USE_PLATFORM_XCB_KHR)
 	#set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
+	find_package(Vulkan REQUIRED)
 endif()
 
 # OpenGL

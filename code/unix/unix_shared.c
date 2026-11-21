@@ -363,6 +363,13 @@ char *Sys_DefaultInstallPath(void)
 {
 	if (*installPath)
 		return installPath;
+	// Check for BASEQ3_DIR environment variable
+	const char *baseq3_dir = getenv("BASEQ3_DIR");
+	if (baseq3_dir && baseq3_dir[0]) {
+		return baseq3_dir;
+	}
+	if (*installPath)
+		return installPath;
 	else
 		return Sys_Cwd();
 }

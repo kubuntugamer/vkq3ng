@@ -751,7 +751,7 @@ void  * QDECL Sys_LoadDll( const char *name, char *fqpath , int (QDECL **entryPo
 
   strcat(path_to_lib,"/");
   strcat(path_to_lib,fname);
-  fn = &path_to_lib;
+  fn = path_to_lib;
   //fn = FS_BuildOSPath( pwdpath, gamedir, fname );
   Com_Printf( "Sys_LoadDll(%s)... \n", fn );
   libHandle = dlopen( fn, Q_RTLD );

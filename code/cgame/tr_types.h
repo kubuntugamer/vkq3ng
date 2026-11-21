@@ -214,6 +214,9 @@ typedef struct {
 // https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=524
 #define OPENGL_DRIVER_NAME	"libGL.so.1"
 #define VULKAN_DRIVER_NAME    "libvulkan.1"
+#ifndef _3DFX_DRIVER_NAME
+#define _3DFX_DRIVER_NAME	"libGL.so.1"
+#endif
 
 #endif	// !defined _WIN32
 

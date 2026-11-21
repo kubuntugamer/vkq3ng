@@ -870,7 +870,7 @@ image_t *R_CreateImage(const char *name, const byte *pic, int width, int height,
 		vk_d.images[image->index] = upload_vk_image(&upload_data, glWrapClampMode);
 		
 		VK_SetSamplerPosition(&vk_d.imageDescriptor, 0, VK_GLOBAL_IMAGEARRAY_SHADER_STAGE_FLAGS, vk_d.images[image->index].sampler, vk_d.images[image->index].view, image->index);
-		VK_SetUpdateSize(&vk_d.imageDescriptor, 0, VK_GLOBAL_IMAGEARRAY_SHADER_STAGE_FLAGS, image->index+1);
+		VK_SetUpdateSize(&vk_d.imageDescriptor, 0, VK_GLOBAL_IMAGEARRAY_SHADER_STAGE_FLAGS, image->index + 1);
 		vk_d.imageDescriptor.needsUpdate = qtrue;
 		//VK_UpdateDescriptorSet(&vk_d.imageDescriptor);
 	}
@@ -1513,7 +1513,7 @@ static void LoadPNG16(const char* filename, byte** pic, int* width, int* height)
 	}
 
 	int components;
-	*pic = stbi_load_16_from_memory(fbuffer, len, width, height, &components, STBI_rgb_alpha);
+	*pic = (byte *)stbi_load_16_from_memory(fbuffer, len, width, height, &components, STBI_rgb_alpha);
 	if (*pic == NULL) {
 		ri.FS_FreeFile(fbuffer);
 		return;

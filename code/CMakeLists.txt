@@ -1,4 +1,9 @@
 
+if(UNIX AND NOT APPLE)
+	# qvk.h defines Vulkan function pointers in every translation unit
+	add_compile_options(-fcommon)
+endif()
+
 # STATIC LIB
 add_subdirectory(botlib)
 add_subdirectory(renderer)

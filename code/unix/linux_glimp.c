@@ -60,6 +60,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "linux_local.h" // bk001130
 
 #include "unix_glw.h"
+#include "linux_wayland.h"
 
 #include <GL/glx.h>
 
@@ -182,140 +183,156 @@ static const char *Q_stristr( const char *s, const char *find)
 
 //#define KBD_DBG
 
+/*
+ * Translate an X11/xkb keysym into a Quake key.  This is shared with the
+ * native Wayland backend, which gets keysyms from xkbcommon.
+ */
+int XLateKeysym(KeySym keysym)
+{
+  int key = 0;
+
+  switch (keysym)
+  {
+  case XK_KP_Page_Up: 
+  case XK_KP_9:  key = K_KP_PGUP; break;
+  case XK_Page_Up:   key = K_PGUP; break;
+
+  case XK_KP_Page_Down: 
+  case XK_KP_3: key = K_KP_PGDN; break;
+  case XK_Page_Down:   key = K_PGDN; break;
+
+  case XK_KP_Home: key = K_KP_HOME; break;
+  case XK_KP_7: key = K_KP_HOME; break;
+  case XK_Home:  key = K_HOME; break;
+
+  case XK_KP_End:
+  case XK_KP_1:   key = K_KP_END; break;
+  case XK_End:   key = K_END; break;
+
+  case XK_KP_Left: key = K_KP_LEFTARROW; break;
+  case XK_KP_4: key = K_KP_LEFTARROW; break;
+  case XK_Left:  key = K_LEFTARROW; break;
+
+  case XK_KP_Right: key = K_KP_RIGHTARROW; break;
+  case XK_KP_6: key = K_KP_RIGHTARROW; break;
+  case XK_Right:  key = K_RIGHTARROW;    break;
+
+  case XK_KP_Down:
+  case XK_KP_2:    key = K_KP_DOWNARROW; break;
+  case XK_Down:  key = K_DOWNARROW; break;
+
+  case XK_KP_Up:   
+  case XK_KP_8:    key = K_KP_UPARROW; break;
+  case XK_Up:    key = K_UPARROW;   break;
+
+  case XK_Escape: key = K_ESCAPE;    break;
+
+  case XK_KP_Enter: key = K_KP_ENTER;  break;
+  case XK_Return: key = K_ENTER;    break;
+
+  case XK_Tab:    key = K_TAB;      break;
+
+  case XK_F1:    key = K_F1;       break;
+
+  case XK_F2:    key = K_F2;       break;
+
+  case XK_F3:    key = K_F3;       break;
+
+  case XK_F4:    key = K_F4;       break;
+
+  case XK_F5:    key = K_F5;       break;
+
+  case XK_F6:    key = K_F6;       break;
+
+  case XK_F7:    key = K_F7;       break;
+
+  case XK_F8:    key = K_F8;       break;
+
+  case XK_F9:    key = K_F9;       break;
+
+  case XK_F10:    key = K_F10;      break;
+
+  case XK_F11:    key = K_F11;      break;
+
+  case XK_F12:    key = K_F12;      break;
+
+    // bk001206 - from Ryan's Fakk2 
+    //case XK_BackSpace: key = 8; break; // ctrl-h
+  case XK_BackSpace: key = K_BACKSPACE; break; // ctrl-h
+
+  case XK_KP_Delete:
+  case XK_KP_Decimal: key = K_KP_DEL; break;
+  case XK_Delete: key = K_DEL; break;
+
+  case XK_Pause:  key = K_PAUSE;    break;
+
+  case XK_Shift_L:
+  case XK_Shift_R:  key = K_SHIFT;   break;
+
+  case XK_Execute: 
+  case XK_Control_L: 
+  case XK_Control_R:  key = K_CTRL;  break;
+
+  case XK_Alt_L:  
+  case XK_Meta_L: 
+  case XK_Alt_R:  
+  case XK_Meta_R: key = K_ALT;     break;
+
+  case XK_KP_Begin: key = K_KP_5;  break;
+
+  case XK_Insert:   key = K_INS; break;
+  case XK_KP_Insert:
+  case XK_KP_0: key = K_KP_INS; break;
+
+  case XK_KP_Multiply: key = '*'; break;
+  case XK_KP_Add:  key = K_KP_PLUS; break;
+  case XK_KP_Subtract: key = K_KP_MINUS; break;
+  case XK_KP_Divide: key = K_KP_SLASH; break;
+
+    // bk001130 - from cvs1.17 (mkv)
+  case XK_exclam: key = '1'; break;
+  case XK_at: key = '2'; break;
+  case XK_numbersign: key = '3'; break;
+  case XK_dollar: key = '4'; break;
+  case XK_percent: key = '5'; break;
+  case XK_asciicircum: key = '6'; break;
+  case XK_ampersand: key = '7'; break;
+  case XK_asterisk: key = '8'; break;
+  case XK_parenleft: key = '9'; break;
+  case XK_parenright: key = '0'; break;
+  
+  // weird french keyboards ..
+  // NOTE: console toggle is hardcoded in cl_keys.c, can't be unbound
+  //   cleaner would be .. using hardware key codes instead of the key syms
+  //   could also add a new K_KP_CONSOLE
+  case XK_twosuperior: key = '~'; break;
+		
+	// https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=472
+	case XK_space:
+	case XK_KP_Space: key = K_SPACE; break;
+
+  default:
+    break;
+  }
+
+  return key;
+}
+
 static char *XLateKey(XKeyEvent *ev, int *key)
 {
   static char buf[64];
   KeySym keysym;
   int XLookupRet;
 
-  *key = 0;
-
   XLookupRet = XLookupString(ev, buf, sizeof buf, &keysym, 0);
 #ifdef KBD_DBG
   ri.Printf(PRINT_ALL, "XLookupString ret: %d buf: %s keysym: %x\n", XLookupRet, buf, keysym);
 #endif
-  
-  switch (keysym)
+
+  *key = XLateKeysym(keysym);
+
+  if (*key == 0)
   {
-  case XK_KP_Page_Up: 
-  case XK_KP_9:  *key = K_KP_PGUP; break;
-  case XK_Page_Up:   *key = K_PGUP; break;
-
-  case XK_KP_Page_Down: 
-  case XK_KP_3: *key = K_KP_PGDN; break;
-  case XK_Page_Down:   *key = K_PGDN; break;
-
-  case XK_KP_Home: *key = K_KP_HOME; break;
-  case XK_KP_7: *key = K_KP_HOME; break;
-  case XK_Home:  *key = K_HOME; break;
-
-  case XK_KP_End:
-  case XK_KP_1:   *key = K_KP_END; break;
-  case XK_End:   *key = K_END; break;
-
-  case XK_KP_Left: *key = K_KP_LEFTARROW; break;
-  case XK_KP_4: *key = K_KP_LEFTARROW; break;
-  case XK_Left:  *key = K_LEFTARROW; break;
-
-  case XK_KP_Right: *key = K_KP_RIGHTARROW; break;
-  case XK_KP_6: *key = K_KP_RIGHTARROW; break;
-  case XK_Right:  *key = K_RIGHTARROW;    break;
-
-  case XK_KP_Down:
-  case XK_KP_2:    *key = K_KP_DOWNARROW; break;
-  case XK_Down:  *key = K_DOWNARROW; break;
-
-  case XK_KP_Up:   
-  case XK_KP_8:    *key = K_KP_UPARROW; break;
-  case XK_Up:    *key = K_UPARROW;   break;
-
-  case XK_Escape: *key = K_ESCAPE;    break;
-
-  case XK_KP_Enter: *key = K_KP_ENTER;  break;
-  case XK_Return: *key = K_ENTER;    break;
-
-  case XK_Tab:    *key = K_TAB;      break;
-
-  case XK_F1:    *key = K_F1;       break;
-
-  case XK_F2:    *key = K_F2;       break;
-
-  case XK_F3:    *key = K_F3;       break;
-
-  case XK_F4:    *key = K_F4;       break;
-
-  case XK_F5:    *key = K_F5;       break;
-
-  case XK_F6:    *key = K_F6;       break;
-
-  case XK_F7:    *key = K_F7;       break;
-
-  case XK_F8:    *key = K_F8;       break;
-
-  case XK_F9:    *key = K_F9;       break;
-
-  case XK_F10:    *key = K_F10;      break;
-
-  case XK_F11:    *key = K_F11;      break;
-
-  case XK_F12:    *key = K_F12;      break;
-
-    // bk001206 - from Ryan's Fakk2 
-    //case XK_BackSpace: *key = 8; break; // ctrl-h
-  case XK_BackSpace: *key = K_BACKSPACE; break; // ctrl-h
-
-  case XK_KP_Delete:
-  case XK_KP_Decimal: *key = K_KP_DEL; break;
-  case XK_Delete: *key = K_DEL; break;
-
-  case XK_Pause:  *key = K_PAUSE;    break;
-
-  case XK_Shift_L:
-  case XK_Shift_R:  *key = K_SHIFT;   break;
-
-  case XK_Execute: 
-  case XK_Control_L: 
-  case XK_Control_R:  *key = K_CTRL;  break;
-
-  case XK_Alt_L:  
-  case XK_Meta_L: 
-  case XK_Alt_R:  
-  case XK_Meta_R: *key = K_ALT;     break;
-
-  case XK_KP_Begin: *key = K_KP_5;  break;
-
-  case XK_Insert:   *key = K_INS; break;
-  case XK_KP_Insert:
-  case XK_KP_0: *key = K_KP_INS; break;
-
-  case XK_KP_Multiply: *key = '*'; break;
-  case XK_KP_Add:  *key = K_KP_PLUS; break;
-  case XK_KP_Subtract: *key = K_KP_MINUS; break;
-  case XK_KP_Divide: *key = K_KP_SLASH; break;
-
-    // bk001130 - from cvs1.17 (mkv)
-  case XK_exclam: *key = '1'; break;
-  case XK_at: *key = '2'; break;
-  case XK_numbersign: *key = '3'; break;
-  case XK_dollar: *key = '4'; break;
-  case XK_percent: *key = '5'; break;
-  case XK_asciicircum: *key = '6'; break;
-  case XK_ampersand: *key = '7'; break;
-  case XK_asterisk: *key = '8'; break;
-  case XK_parenleft: *key = '9'; break;
-  case XK_parenright: *key = '0'; break;
-  
-  // weird french keyboards ..
-  // NOTE: console toggle is hardcoded in cl_keys.c, can't be unbound
-  //   cleaner would be .. using hardware key codes instead of the key syms
-  //   could also add a new K_KP_CONSOLE
-  case XK_twosuperior: *key = '~'; break;
-		
-	// https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=472
-	case XK_space:
-	case XK_KP_Space: *key = K_SPACE; break;
-
-  default:
     if (XLookupRet == 0)
     {
       if (com_developer->value)
@@ -335,8 +352,7 @@ static char *XLateKey(XKeyEvent *ev, int *key)
       else if (*key >= 1 && *key <= 26)
      	  *key = *key + 'a' - 1;
     }
-    break;
-  } 
+  }
 
   return buf;
 }
@@ -713,6 +729,13 @@ void KBD_Close(void)
 
 void IN_ActivateMouse( void ) 
 {
+  if (WL_IsActive())
+  {
+    if (mouse_avail)
+      WL_ActivateMouse();
+    return;
+  }
+
   if (!mouse_avail || !dpy || !win)
     return;
 
@@ -728,6 +751,12 @@ void IN_ActivateMouse( void )
 
 void IN_DeactivateMouse( void ) 
 {
+  if (WL_IsActive())
+  {
+    WL_DeactivateMouse();
+    return;
+  }
+
   if (!mouse_avail || !dpy || !win)
     return;
 
@@ -1467,7 +1496,7 @@ void GLimp_Init( void )
   ri.Cvar_Set( "r_previousglDriver", r_glDriver->string );
 
   // This values force the UI to disable driver selection
-  glConfig.driverType = GLDRV_ICD;
+  glConfig.driverType = OPENGL;
   glConfig.hardwareType = GLHW_GENERIC;
 
   // get our config strings
@@ -1522,16 +1551,16 @@ void GLimp_Init( void )
   //
   if ( Q_stristr( buf, "banshee" ) || Q_stristr( buf, "Voodoo_Graphics" ) )
   {
-    glConfig.hardwareType = GLHW_3DFX_2D3D;
+    glConfig.hardwareType = GLHW_GENERIC;
   } else if ( Q_stristr( buf, "rage pro" ) || Q_stristr( buf, "RagePro" ) )
   {
-    glConfig.hardwareType = GLHW_RAGEPRO;
+    glConfig.hardwareType = GLHW_GENERIC;
   } else if ( Q_stristr( buf, "permedia2" ) )
   {
-    glConfig.hardwareType = GLHW_PERMEDIA2;
+    glConfig.hardwareType = GLHW_GENERIC;
   } else if ( Q_stristr( buf, "riva 128" ) )
   {
-    glConfig.hardwareType = GLHW_RIVA128;
+    glConfig.hardwareType = GLHW_GENERIC;
   } else if ( Q_stristr( buf, "riva tnt " ) )
   {
   }
@@ -1765,6 +1794,12 @@ void IN_Activate(void)
 void Sys_SendKeyEvents (void) {
   // XEvent event; // bk001204 - unused
 
+  if (WL_IsActive())
+  {
+    WL_Pump();
+    return;
+  }
+
   if (!dpy)
     return;
   HandleEvents();
@@ -1778,3 +1813,170 @@ void Sys_SendKeyEvents (void) {
 void IN_StartupJoystick( void ) {}
 void IN_JoyMove( void ) {}
 #endif
+
+/*****************************************************************************/
+/* VULKAN                                                                    */
+/*****************************************************************************/
+
+#ifdef __linux__
+
+static void* vulkanLib = NULL;
+
+static void GLW_LoadVulkanLibrary( void )
+{
+  const char* libs[] = { "libvulkan.so.1", "libvulkan.so", NULL };
+  int i;
+
+  for ( i = 0; libs[i]; i++ )
+  {
+    vulkanLib = dlopen( libs[i], RTLD_NOW | RTLD_LOCAL );
+    if ( vulkanLib )
+      break;
+  }
+
+  if ( !vulkanLib )
+    ri.Error( ERR_FATAL, "VKimp_Init() - could not load Vulkan library: %s\n", dlerror() );
+
+  vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)dlsym( vulkanLib, "vkGetInstanceProcAddr" );
+  if ( !vkGetInstanceProcAddr )
+    ri.Error( ERR_FATAL, "VKimp_Init() - could not resolve vkGetInstanceProcAddr\n" );
+}
+
+static void GLW_CreateVulkanWindow( void )
+{
+  XSetWindowAttributes attr;
+  XSizeHints sizehints;
+  Window root;
+  int actualWidth, actualHeight;
+
+  if ( !R_GetModeInfo( &glConfig.vidWidth, &glConfig.vidHeight, &glConfig.windowAspect, r_mode->integer ) )
+  {
+    glConfig.vidWidth = 1280;
+    glConfig.vidHeight = 720;
+    glConfig.windowAspect = 16.0f / 9.0f;
+  }
+
+  actualWidth = glConfig.vidWidth;
+  actualHeight = glConfig.vidHeight;
+
+  if ( !( dpy = XOpenDisplay( NULL ) ) )
+    ri.Error( ERR_FATAL, "VKimp_Init() - could not open X display\n" );
+
+  scrnum = DefaultScreen( dpy );
+  root = RootWindow( dpy, scrnum );
+
+  attr.background_pixel = BlackPixel( dpy, scrnum );
+  attr.border_pixel = 0;
+  attr.colormap = XCreateColormap( dpy, root, DefaultVisual( dpy, scrnum ), AllocNone );
+  attr.event_mask = X_MASK;
+
+  win = XCreateWindow( dpy, root, 0, 0, actualWidth, actualHeight, 0, CopyFromParent,
+                       InputOutput, CopyFromParent,
+                       CWBackPixel | CWBorderPixel | CWColormap | CWEventMask, &attr );
+
+  XStoreName( dpy, win, WINDOW_CLASS_NAME );
+
+  sizehints.flags = PMinSize | PMaxSize;
+  sizehints.min_width = sizehints.max_width = actualWidth;
+  sizehints.min_height = sizehints.max_height = actualHeight;
+  XSetWMNormalHints( dpy, win, &sizehints );
+
+  XMapWindow( dpy, win );
+  XFlush( dpy );
+  XSync( dpy, False );
+}
+
+void VKimp_Init( void )
+{
+  VkPhysicalDeviceProperties deviceProp;
+  const char* vendor_name = "unknown";
+
+  ri.Printf( PRINT_ALL, "Initializing Vulkan subsystem\n" );
+
+  if ( !R_GetModeInfo( &glConfig.vidWidth, &glConfig.vidHeight, &glConfig.windowAspect, r_mode->integer ) )
+  {
+    glConfig.vidWidth = 1280;
+    glConfig.vidHeight = 720;
+    glConfig.windowAspect = 16.0f / 9.0f;
+  }
+
+  GLW_LoadVulkanLibrary();
+
+  if ( WL_Init( glConfig.vidWidth, glConfig.vidHeight, r_fullscreen->integer, WINDOW_CLASS_NAME ) )
+  {
+    glConfig.vidWidth = WL_GetWidth();
+    glConfig.vidHeight = WL_GetHeight();
+    if ( glConfig.vidHeight > 0 )
+      glConfig.windowAspect = (float)glConfig.vidWidth / (float)glConfig.vidHeight;
+
+    VK_SetWaylandSurface();
+    if ( !VK_Setup( WL_GetDisplay(), WL_GetSurface() ) )
+      ri.Error( ERR_FATAL, "VKimp_Init() - Vulkan setup failed\n" );
+  }
+  else
+  {
+    GLW_CreateVulkanWindow();
+    if ( !VK_Setup( (void*)dpy, (void*)win ) )
+      ri.Error( ERR_FATAL, "VKimp_Init() - Vulkan setup failed\n" );
+  }
+
+  deviceProp = vk.deviceProperties;
+
+  if ( deviceProp.vendorID == 0x1002 )
+    vendor_name = "Advanced Micro Devices, Inc.";
+  else if ( deviceProp.vendorID == 0x10DE )
+    vendor_name = "NVIDIA Corporation";
+  else if ( deviceProp.vendorID == 0x8086 )
+    vendor_name = "Intel Corporation";
+
+  Q_strncpyz( glConfig.vendor_string, vendor_name, sizeof( glConfig.vendor_string ) );
+  Q_strncpyz( glConfig.renderer_string, deviceProp.deviceName, sizeof( glConfig.renderer_string ) );
+  Q_strncpyz( glConfig.version_string, va( "%d.%d.%d",
+              VK_VERSION_MAJOR( deviceProp.apiVersion ),
+              VK_VERSION_MINOR( deviceProp.apiVersion ),
+              VK_VERSION_PATCH( deviceProp.apiVersion ) ), sizeof( glConfig.version_string ) );
+  glConfig.extensions_string[0] = '\0';
+
+  glConfig.driverType = VULKAN;
+  glConfig.hardwareType = GLHW_GENERIC;
+  glConfig.colorBits = 32;
+  glConfig.depthBits = 24;
+  glConfig.stencilBits = 8;
+  glConfig.maxTextureSize = deviceProp.limits.maxImageDimension2D;
+  glConfig.maxActiveTextures = 32;
+  glConfig.textureCompression = TC_NONE;
+  glConfig.textureEnvAddAvailable = qfalse;
+  glConfig.deviceSupportsGamma = qfalse;
+  glConfig.isFullscreen = WL_IsActive() ? ( r_fullscreen->integer != 0 ) : qfalse;
+  glConfig.displayFrequency = 60;
+}
+
+void VKimp_Shutdown( void )
+{
+  if ( vk.device != VK_NULL_HANDLE )
+    VK_Destroy();
+
+  if ( WL_IsActive() )
+  {
+    WL_Shutdown();
+  }
+  else if ( dpy )
+  {
+    if ( win )
+      XDestroyWindow( dpy, win );
+    XCloseDisplay( dpy );
+  }
+
+  dpy = NULL;
+  win = 0;
+
+  if ( vulkanLib )
+  {
+    dlclose( vulkanLib );
+    vulkanLib = NULL;
+  }
+
+  memset( &glConfig, 0, sizeof( glConfig ) );
+}
+
+#endif // __linux__

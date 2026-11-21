@@ -4,28 +4,28 @@ void VK_CreateAttributeBuffer(vkbuffer_t* buffer, VkDeviceSize allocSize, VkBuff
 	VkDeviceSize nCAS = vk.deviceProperties.limits.nonCoherentAtomSize;
 	buffer->allocSize = ((allocSize + (nCAS - 1)) / nCAS) * nCAS;
 	VK_CreateBufferMemory(buffer->allocSize, usage, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer->buffer, &buffer->memory);
-	VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (byte * *)(&buffer->p)), "failed to Map Memory!");
+	VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (void**)&buffer->p), "failed to Map Memory!");
 }
 
 void VK_CreateVertexBuffer(vkbuffer_t *buffer, VkDeviceSize allocSize){
 	VkDeviceSize nCAS = vk.deviceProperties.limits.nonCoherentAtomSize;
 	buffer->allocSize = ((allocSize + (nCAS - 1)) / nCAS) * nCAS;
 	VK_CreateBufferMemory(buffer->allocSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer->buffer, &buffer->memory);
-    VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (byte**)(&buffer->p)), "failed to Map Memory!");
+    VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (void**)&buffer->p), "failed to Map Memory!");
 }
 
 void VK_CreateIndexBuffer(vkbuffer_t *buffer, VkDeviceSize allocSize){
 	VkDeviceSize nCAS = vk.deviceProperties.limits.nonCoherentAtomSize;
 	buffer->allocSize = ((allocSize + (nCAS - 1)) / nCAS) * nCAS;
 	VK_CreateBufferMemory(buffer->allocSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer->buffer, &buffer->memory);
-    VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (byte**)(&buffer->p)), "failed to Map Memory!");
+    VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (void**)&buffer->p), "failed to Map Memory!");
 }
 
 void VK_CreateUniformBuffer(vkbuffer_t* buffer, VkDeviceSize allocSize) {
 	VkDeviceSize nCAS = vk.deviceProperties.limits.nonCoherentAtomSize;
 	buffer->allocSize = ((allocSize + (nCAS - 1)) / nCAS) * nCAS;
 	VK_CreateBufferMemory(buffer->allocSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer->buffer, &buffer->memory);
-	VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (byte * *)(&buffer->p)), "failed to Map Memory!");
+	VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (void**)&buffer->p), "failed to Map Memory!");
 }
 
 // RTX
@@ -37,7 +37,7 @@ void VK_CreateRayTracingASBuffer(vkbuffer_t* buffer, VkDeviceSize allocSize) {
 void VK_CreateRayTracingBuffer(vkbuffer_t* buffer, VkDeviceSize allocSize) {
 	buffer->allocSize = allocSize;
 	VK_CreateBufferMemory(allocSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &buffer->buffer, &buffer->memory);
-	VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (byte * *)(&buffer->p)), "failed to Map Memory!");
+	VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (void**)&buffer->p), "failed to Map Memory!");
 }
 void VK_CreateRayTracingScratchBuffer(vkbuffer_t* buffer, VkDeviceSize allocSize) {
 	buffer->allocSize = allocSize;
@@ -47,7 +47,7 @@ void VK_CreateRayTracingScratchBuffer(vkbuffer_t* buffer, VkDeviceSize allocSize
 void VK_CreateShaderBindingTableBuffer(vkbuffer_t* buffer, VkDeviceSize allocSize) {
 	buffer->allocSize = allocSize;
 	VK_CreateBufferMemory(allocSize, VK_BUFFER_USAGE_RAY_TRACING_BIT_NV, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, &buffer->buffer, &buffer->memory);
-	VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (byte * *)(&buffer->p)), "failed to Map Memory!");
+	VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (void**)&buffer->p), "failed to Map Memory!");
 }
 
 void VK_UploadBufferDataOffset(vkbuffer_t* buffer, VkDeviceSize offset, VkDeviceSize size, const byte* data) {
@@ -68,7 +68,7 @@ void VK_UploadBufferData(vkbuffer_t* buffer, const byte* data) {
 
 void VK_MapBuffer(vkbuffer_t* buffer) {
 	if (!buffer->p) {
-		VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (byte * *)(&buffer->p)), "failed to Map Memory!");
+		VK_CHECK(vkMapMemory(vk.device, buffer->memory, 0, buffer->allocSize, 0, (void**)&buffer->p), "failed to Map Memory!");
 	}
 }
 

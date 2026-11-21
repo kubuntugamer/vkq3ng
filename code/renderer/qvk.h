@@ -28,6 +28,30 @@
 
 #elif defined( __linux__ )
 
+#define VK_USE_PLATFORM_XLIB_KHR
+#define VK_NO_PROTOTYPES
+#include <vulkan/vulkan.h>
+
+/*
+ * Wayland WSI.  Keep the Vulkan headers free of wayland-client.h so the
+ * renderer does not need the Wayland headers in every translation unit.
+ */
+#ifndef VK_USE_PLATFORM_WAYLAND_KHR
+typedef struct wl_display wl_display;
+typedef struct wl_surface wl_surface;
+typedef struct VkWaylandSurfaceCreateInfoKHR {
+	VkStructureType sType;
+	const void* pNext;
+	VkFlags flags;
+	struct wl_display* display;
+	struct wl_surface* surface;
+} VkWaylandSurfaceCreateInfoKHR;
+#ifndef VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR
+#define VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR ((VkStructureType)1000006000)
+#endif
+typedef VkResult (VKAPI_PTR *PFN_vkCreateWaylandSurfaceKHR)(VkInstance, const VkWaylandSurfaceCreateInfoKHR*, const VkAllocationCallbacks*, VkSurfaceKHR*);
+#endif
+
 #else
 
 #include <gl.h>
@@ -66,7 +90,8 @@ PFN_vkCreateWin32SurfaceKHR						vkCreateWin32SurfaceKHR;
 #elif defined(__APPLE__)
 PFN_vkCreateMacOSSurfaceMVK                     vkCreateMacOSSurfaceMVK;
 #elif defined( __linux__ )
-
+PFN_vkCreateXlibSurfaceKHR						vkCreateXlibSurfaceKHR;
+PFN_vkCreateWaylandSurfaceKHR					vkCreateWaylandSurfaceKHR;
 #endif
 PFN_vkDestroySurfaceKHR                         vkDestroySurfaceKHR;
 
@@ -215,5 +240,10 @@ PFN_vkCmdBuildAccelerationStructureNV			vkCmdBuildAccelerationStructureNV;
 PFN_vkCreateRayTracingPipelinesNV				vkCreateRayTracingPipelinesNV;
 PFN_vkGetRayTracingShaderGroupHandlesNV			vkGetRayTracingShaderGroupHandlesNV;
 PFN_vkCmdTraceRaysNV							vkCmdTraceRaysNV;
+
+/* Platform entry points */
+qboolean VK_Setup(void* p1, void* p2);
+void VK_SetWaylandSurface(void);
+void VK_Destroy(void);
 
 #endif
