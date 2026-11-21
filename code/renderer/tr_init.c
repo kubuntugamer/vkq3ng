@@ -1639,6 +1639,11 @@ void RE_Shutdown( qboolean destroyWindow ) {
 	if (tr.registered) {
 		R_SyncRenderThread();
 		R_ShutdownCommandBuffers();
+		if (glConfig.driverType == VULKAN) {
+			// Make sure no in-flight GPU work still references the resources
+			// (acceleration structures, pipelines, images) destroyed below.
+			VK_CHECK(vkDeviceWaitIdle(vk.device), " failed to wait for Idle!");
+		}
 		R_DeleteTextures();
 
 		if (glConfig.driverType == VULKAN) {
