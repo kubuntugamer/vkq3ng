@@ -112,6 +112,15 @@ void VK_SetSamplerPosition(vkdescriptor_t *descriptor, uint32_t binding, VkShade
 void VK_SetSampler(vkdescriptor_t* descriptor, uint32_t binding, VkShaderStageFlagBits stage, VkSampler sampler, VkImageView imageView) {
 	VK_SetSamplerPosition(descriptor, binding, stage, sampler, imageView, 0);
 }
+void VK_SetSamplerLayout(vkdescriptor_t* descriptor, uint32_t binding, VkShaderStageFlagBits stage, VkImageLayout layout) {
+	for (int i = 0; i < descriptor->size; ++i) {
+		if (descriptor->bindings[i].binding == binding &&
+			descriptor->bindings[i].stageFlags == stage) {
+			descriptor->data[i].descImageInfo[0].imageLayout = layout;
+			return;
+		}
+	}
+}
 
 void VK_SetStorageImage(vkdescriptor_t* descriptor, uint32_t binding, VkShaderStageFlagBits stage, VkImageView imageView) {
 	for (int i = 0; i < descriptor->size; ++i) {

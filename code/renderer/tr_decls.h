@@ -281,6 +281,7 @@ void VK_SetPerformanceMarker(VkCommandBuffer command_buffer, int index);
 void VK_SetPushConstant(vkpipeline_t *pipeline, VkShaderStageFlags stage, uint32_t offset, uint32_t size, void* data);
 void VK_SetRayTracingShader(vkrtpipeline_t *pipeline, vkshader_t *shader);
 void VK_SetSampler(vkdescriptor_t* descriptor, uint32_t binding, VkShaderStageFlagBits stage, VkSampler sampler, VkImageView imageView);
+void VK_SetSamplerLayout(vkdescriptor_t* descriptor, uint32_t binding, VkShaderStageFlagBits stage, VkImageLayout layout);
 void VK_SetSamplerPosition(vkdescriptor_t *descriptor, uint32_t binding, VkShaderStageFlagBits stage, VkSampler sampler, VkImageView imageView, uint32_t pos);
 void VK_SetShader(vkpipeline_t *pipeline, vkshader_t *shader);
 void VK_SetStorageBuffer(vkdescriptor_t* descriptor, uint32_t binding, VkShaderStageFlagBits stage, VkBuffer buffer);

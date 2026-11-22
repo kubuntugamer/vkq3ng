@@ -300,10 +300,10 @@ static void VK_CopyBufferToImage(vkimage_t* image, uint32_t width, uint32_t heig
 	VkImageMemoryBarrier barrier = { 0 };
 	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
 	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.layerCount = image->arrayLayers;
-	barrier.subresourceRange.baseMipLevel = 0;
-	barrier.subresourceRange.levelCount = image->mipLevels;
+	barrier.subresourceRange.baseArrayLayer = arrayLayer;
+	barrier.subresourceRange.layerCount = 1;
+	barrier.subresourceRange.baseMipLevel = mipLevel;
+	barrier.subresourceRange.levelCount = 1;
 
 	// transition to VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 	barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;

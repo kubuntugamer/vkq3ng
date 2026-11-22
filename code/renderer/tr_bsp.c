@@ -2505,8 +2505,10 @@ void R_CreatePrimaryRaysPipeline() {
 		VK_SetStorageImage(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_GRAD_B, VK_SHADER_STAGE_COMPUTE_BIT, vk_d.asvgf[i].gradB.view);
 		VK_AddSampler(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_GRAD_A_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT);
 		VK_SetSampler(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_GRAD_A_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, vk_d.asvgf[i].gradA.sampler, vk_d.asvgf[i].gradA.view);
+		VK_SetSamplerLayout(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_GRAD_A_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, VK_IMAGE_LAYOUT_GENERAL);
 		VK_AddSampler(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_GRAD_B_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT);
 		VK_SetSampler(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_GRAD_B_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, vk_d.asvgf[i].gradB.sampler, vk_d.asvgf[i].gradB.view);
+		VK_SetSamplerLayout(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_GRAD_B_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, VK_IMAGE_LAYOUT_GENERAL);
 
 
 
@@ -2520,6 +2522,7 @@ void R_CreatePrimaryRaysPipeline() {
 		VK_SetStorageImage(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_HIST_COLOR_PREV, VK_SHADER_STAGE_COMPUTE_BIT, vk_d.asvgf[prevIndex].histColor.view);
 		VK_AddSampler(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_HIST_COLOR_S, VK_SHADER_STAGE_COMPUTE_BIT);
 		VK_SetSampler(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_HIST_COLOR_S, VK_SHADER_STAGE_COMPUTE_BIT, vk_d.asvgf[i].histColor.sampler, vk_d.asvgf[i].histColor.view);
+		VK_SetSamplerLayout(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_HIST_COLOR_S, VK_SHADER_STAGE_COMPUTE_BIT, VK_IMAGE_LAYOUT_GENERAL);
 
 
 		VK_AddStorageImage(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_HIST_MOMENTS, VK_SHADER_STAGE_COMPUTE_BIT);
@@ -2533,11 +2536,14 @@ void R_CreatePrimaryRaysPipeline() {
 		VK_SetStorageImage(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_ATROUS_B, VK_SHADER_STAGE_COMPUTE_BIT, vk_d.asvgf[i].atrousB.view);
 		VK_AddSampler(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_ATROUS_A_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT);
 		VK_SetSampler(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_ATROUS_A_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, vk_d.asvgf[i].atrousA.sampler, vk_d.asvgf[i].atrousA.view);
+		VK_SetSamplerLayout(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_ATROUS_A_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, VK_IMAGE_LAYOUT_GENERAL);
 		VK_AddSampler(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_ATROUS_B_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT);
 		VK_SetSampler(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_ATROUS_B_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, vk_d.asvgf[i].atrousB.sampler, vk_d.asvgf[i].atrousB.view);
+		VK_SetSamplerLayout(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_ATROUS_B_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, VK_IMAGE_LAYOUT_GENERAL);
 
 		VK_AddSampler(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_TAA_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT);
 		VK_SetSampler(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_TAA_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, vk_d.asvgf[i].taa.sampler, vk_d.asvgf[i].taa.view);
+		VK_SetSamplerLayout(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_TAA_SAMPLER, VK_SHADER_STAGE_COMPUTE_BIT, VK_IMAGE_LAYOUT_GENERAL);
 		/*VK_AddStorageImage(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_TAA_PREV, VK_SHADER_STAGE_COMPUTE_BIT);
 		VK_SetStorageImage(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_TAA_PREV, VK_SHADER_STAGE_COMPUTE_BIT, vk_d.asvgf[prevIndex].taa.view);*/
 
@@ -2545,6 +2551,7 @@ void R_CreatePrimaryRaysPipeline() {
 		VK_SetStorageImage(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_TAA, VK_SHADER_STAGE_COMPUTE_BIT, vk_d.asvgf[i].taa.view);
 		VK_AddSampler(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_TAA_PREV, VK_SHADER_STAGE_COMPUTE_BIT);
 		VK_SetSampler(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_TAA_PREV, VK_SHADER_STAGE_COMPUTE_BIT, vk_d.asvgf[prevIndex].taa.sampler, vk_d.asvgf[prevIndex].taa.view);
+		VK_SetSamplerLayout(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_TAA_PREV, VK_SHADER_STAGE_COMPUTE_BIT, VK_IMAGE_LAYOUT_GENERAL);
 
 		VK_AddStorageImage(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_COLOR, VK_SHADER_STAGE_COMPUTE_BIT);
 		VK_SetStorageImage(&vk_d.computeDescriptor[i], BINDING_OFFSET_ASVGF_COLOR, VK_SHADER_STAGE_COMPUTE_BIT, vk_d.asvgf[i].color.view);
@@ -3075,8 +3082,6 @@ void R_PreparePT() {
 				R_LoadImage(shader->sky.outerbox[2]->imgName, &pic, &width, &height);
 				VK_UploadImageData(&vk_d.accelerationStructures.envmap, width, height, pic, 4, 0, 5); // left
 				ri.Free(pic);
-
-				VK_UploadImageData(&vk_d.accelerationStructures.envmap, width, height, pic, 4, 0, 5);
 			}
 			else if (shader->rtstages[0] != NULL) {
 			skyFromStage:
@@ -3140,7 +3145,7 @@ void R_PreparePT() {
 		byte black[4] = { 0,0,0,0 };
 		VK_CreateCubeMap(&vk_d.accelerationStructures.envmap, 1, 1,
 			VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 1, 6);
-		for (int skyIndex = 0; skyIndex < 5; skyIndex++) {
+		for (int skyIndex = 0; skyIndex < 6; skyIndex++) {
 			VK_UploadImageData(&vk_d.accelerationStructures.envmap, 1, 1, black, 4, 0, skyIndex);
 		}
 		VK_CreateSampler(&vk_d.accelerationStructures.envmap, VK_FILTER_LINEAR, VK_FILTER_LINEAR, VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
