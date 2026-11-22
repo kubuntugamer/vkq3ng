@@ -4,4 +4,7 @@
 exec /usr/lib/vkq3ng/bin/quake3 \
     +set fs_basePath "${Q3_BASE:-/usr/share/vkq3ng}" \
     +set fs_homePath "${Q3_HOME:-$HOME/.q3a}" \
+    +set vm_game 0 \
+    +set vm_cgame 0 \
+    +set vm_ui 0 \
     "$@"
