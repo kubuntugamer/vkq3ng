@@ -1844,6 +1844,7 @@ void RE_Shutdown( qboolean destroyWindow ) {
 			}
 			VK_DestroyBuffer(&vk_d.scratchBuffer);
 			VK_DestroyImage(&vk_d.blueNoiseTex);
+			VK_DestroyImage(&vk_d.imageFallback);
 
 			// g buffer and asvgf
 			for (int i = 0; i < vk.swapchain.imageCount; i++) {
