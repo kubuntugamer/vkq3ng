@@ -1,4 +1,36 @@
 #include "tr_local.h"
+
+#include <pthread.h>
+
+/*
+ * The SMP frontend builds static entity bottom-level acceleration
+ * structures while the render thread runs RB_RayTraceScene.  Both paths
+ * use the shared global tess state, so they must not overlap.  A
+ * recursive mutex lets the render thread keep its existing nested
+ * RB_CreateEntityBottomAS calls.
+ */
+static pthread_mutex_t rbTessMutex;
+static pthread_once_t rbTessMutexOnce = PTHREAD_ONCE_INIT;
+
+static void RB_InitTessMutex(void)
+{
+	pthread_mutexattr_t attr;
+	pthread_mutexattr_init(&attr);
+	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+	pthread_mutex_init(&rbTessMutex, &attr);
+	pthread_mutexattr_destroy(&attr);
+}
+
+void RB_TessLock(void)
+{
+	pthread_once(&rbTessMutexOnce, RB_InitTessMutex);
+	pthread_mutex_lock(&rbTessMutex);
+}
+
+void RB_TessUnlock(void)
+{
+	pthread_mutex_unlock(&rbTessMutex);
+}
 #include "vulkan/vk_ngx.h"
 #include "vulkan/vk_fsr2.h"
 #include "../../shader/glsl/constants.h"
@@ -142,6 +174,7 @@ void RB_UploadXYZ(vkbuffer_t* buffer, uint32_t offsetXYZ, int cluster) {
 }
 
 void RB_CreateEntityBottomAS(vkbottomAS_t** bAS, qboolean dynamic) {
+	RB_TessLock();
 	// set offsets and 
 	uint32_t* idxOffset;
 	uint32_t* xyzOffset;
@@ -239,6 +272,7 @@ void RB_CreateEntityBottomAS(vkbottomAS_t** bAS, qboolean dynamic) {
 	(*idxOffset) += tess.numIndexes;
 	(*xyzOffset) += tess.numVertexes;
 	if (bAS != NULL) (*bAS) = bASList;
+	RB_TessUnlock();
 }
 
 void RB_UpdateInstanceDataBuffer(vkbottomAS_t* bAS) {
@@ -1220,6 +1254,7 @@ static void RB_FSR2CopyImage(VkCommandBuffer cmd, vkimage_t *src, vkimage_t *dst
 }
 
 void RB_RayTraceScene(drawSurf_t* drawSurfs, int numDrawSurfs) {
+	RB_TessLock();
 	VkMemoryBarrier memoryBarrier = { 0 };
 	vkCmdEndRenderPass(vk.swapchain.CurrentCommandBuffer());
 
@@ -1327,5 +1362,6 @@ void RB_RayTraceScene(drawSurf_t* drawSurfs, int numDrawSurfs) {
 		ri.Cvar_Set("rt_printPerfStats", 0);
 	}
 
+	RB_TessUnlock();
 }
 

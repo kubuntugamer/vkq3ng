@@ -41,6 +41,8 @@ void RB_CalcWaveColor(const waveForm_t *wf, unsigned char *dstColors);
 void RB_CheckOverflow(int verts, int indexes);
 void RB_ClipSkyPolygons(shaderCommands_t *input);
 void RB_CreateEntityBottomAS(vkbottomAS_t** bAS, qboolean dynamic);
+void RB_TessLock(void);
+void RB_TessUnlock(void);
 void RB_DeformTessGeometry(void);
 void RB_DrawSun(void);
 void RB_EndSurface(void);

@@ -371,6 +371,9 @@ void R_AddMD3Surfaces( trRefEntity_t *ent ) {
 		// create bas for entity if not yet done
 		if (glConfig.driverType == VULKAN && r_vertexLight->value == 2) {
 			if (tr.currentModel->bAS[lod][i] == NULL){
+				/* The render thread also uses tess; keep the one-time static
+				 * bottom-AS build from racing it. */
+				RB_TessLock();
 				vk_d.scratchBufferOffset = 0;
 				tess.numVertexes = 0;
 				tess.numIndexes = 0;
@@ -387,6 +390,7 @@ void R_AddMD3Surfaces( trRefEntity_t *ent ) {
 				tess.numVertexes = 0;
 				tess.numIndexes = 0;
 				vk_d.scratchBufferOffset = 0;
+				RB_TessUnlock();
 			}
 		
 			tr.currentModel->bAS[lod][i]->surfcount = i;
