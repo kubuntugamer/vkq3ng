@@ -216,9 +216,13 @@ void VK_AdaptiveResolutionTick(void) {
 
 	if (!r_rtxAdaptive || !r_rtxAdaptive->integer || !vk_raytracing_enabled)
 		return;
-	if (VK_NGX_Active())
+	/* Stop as soon as an upscaler owns the render extent.  Checking only
+	 * Active lets the menu ramp the extent to full size before the first
+	 * 3D scene creates the DLSS/FSR2 context, which then feeds the upscaler
+	 * a native-resolution input and can trigger a device-lost on map load. */
+	if (VK_NGX_Available() || VK_NGX_Active())
 		return;
-	if (VK_FSR2_Active())
+	if (VK_FSR2_Available() || VK_FSR2_Active())
 		return;
 	if (vk.renderMaxExtent.width == 0 || vk.renderMaxExtent.height == 0)
 		return;

@@ -128,10 +128,14 @@ static const struct pw_stream_events stream_events = {
 
 static void pw_cleanup(void)
 {
-	if (pw_stream) {
+	if (pw_stream && pw_loop) {
+		/* Stream destruction must happen on the thread-loop context;
+		 * PipeWire rejects it from the main thread otherwise. */
+		pw_thread_loop_lock(pw_loop);
 		pw_stream_disconnect(pw_stream);
 		pw_stream_destroy(pw_stream);
 		pw_stream = NULL;
+		pw_thread_loop_unlock(pw_loop);
 	}
 	if (pw_loop) {
 		pw_thread_loop_stop(pw_loop);
