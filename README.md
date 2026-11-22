@@ -27,6 +27,8 @@ It still uses your own Quake III Arena data files. No game assets are included.
   upscaling as a vendor-neutral fallback.
 - **Growable zone allocator** so large HD texture packs are not limited by the original
   fixed-size zone.
+- **Parallel asset decoding** for JPG/PNG textures, including `.tga` → `.jpg` fallbacks,
+  with a decoded-image cache reused across map loads.
 - **Repaired Linux build**: submodules, shader generation, strict-compiler fixes, and
   Vulkan/RTX resource lifetime fixes.
 
@@ -107,6 +109,40 @@ The UI, cgame, and game modules are built alongside it in `bin/`.
 
 > The original Windows build still exists, but Linux is the maintained target of this fork.
 
+## Prebuilt packages
+
+Ready-to-run Linux packages are attached to the
+[latest release](https://github.com/kubuntugamer/vkq3ng/releases/latest):
+
+| Package | Use |
+|---|---|
+| `vkq3ng_<version>-<release>_amd64.deb` | Debian, Ubuntu, Kubuntu |
+| `vkq3ng-<version>-<release>.x86_64.rpm` | Fedora and RHEL-family distributions |
+| `vkq3ng-<version>-linux-x86_64.tar.gz` | portable archive with `run.sh` |
+| `vkq3ng-<version>-source.tar.gz` | complete source, including submodules |
+
+The `.deb` and `.rpm` install the launcher as `vkq3ng`, the engine under
+`/usr/lib/vkq3ng/bin`, and the CC0 blue-noise textures under
+`/usr/share/vkq3ng/baseq3`. Game data is **not** included: place
+`pak0.pk3` … `pak8.pk3` and `q3key` in `/usr/share/vkq3ng/baseq3`, or point
+the launcher at an existing installation:
+
+```bash
+Q3_BASE="/path/to/Quake3" vkq3ng
+```
+
+`Q3_HOME` overrides the writable homepath (default `$HOME/.q3a`). The
+portable archive has the same layout with `bin/` and `baseq3/` under the
+archive root; run `./run.sh` from that directory.
+
+To build all packages from source:
+
+```bash
+./packaging/linux/make-packages.sh
+```
+
+Artifacts and checksums are written to `dist/`.
+
 ## Game data
 
 This repository contains source code only. You must provide your own Quake III Arena
@@ -160,12 +196,19 @@ The rewritten zone allocator grows on demand, so large packs that exceed the ori
 
 ## Running
 
-Start the main menu:
+From a source build, start the main menu:
 
 ```bash
 ./bin/quake3 \
   +set fs_basePath "/path/to/Quake3" \
   +set fs_homePath "$HOME/.q3a"
+```
+
+If installed from a package, use the launcher:
+
+```bash
+vkq3ng +map q3dm1
+Q3_BASE="/path/to/Quake3" vkq3ng
 ```
 
 Start directly on a map:
@@ -288,8 +331,9 @@ The zone allocator now grows in segments; no extra cvar is required. Make sure t
 
 ## Asset and source licensing
 
-The engine source is derived from id Software's GPL Quake III Arena release. See `COPYING`
-and the licenses of the bundled third-party libraries. The FSR2 backend and its generated
+The engine source is derived from id Software's GPL Quake III Arena release. See
+`packaging/linux/LICENSES/GPL-2.0.txt` and the licenses of the bundled third-party
+libraries. The FSR2 backend and its generated
 Vulkan shader blobs are derived from AMD FidelityFX FSR2 2.2.1 under the MIT license; see
 `code/renderer/fsr2/LICENSE.txt`.
 
