@@ -22,13 +22,14 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // tr_image.c
 #include "tr_local.h"
 
+/* stb decodes run on worker threads, so its allocations must not touch the
+ * main-thread zone allocator.  Synchronous loaders copy the result into engine
+ * memory before returning. */
 static void* q3_stbi_malloc(size_t size) {
-	return ri.Malloc((int)size);
-	//return malloc((int)size);
+	return malloc(size);
 }
 static void q3_stbi_free(void* p) {
-	if(p) ri.Free(p);
-	//Z_Free(p);
+	free(p);
 }
 static void* q3_stbi_realloc(void* p, size_t old_size, size_t new_size) {
 	if (p == NULL)
@@ -56,6 +57,37 @@ static void* q3_stbi_realloc(void* p, size_t old_size, size_t new_size) {
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_NO_GIF
 #include "stb_image.h"
+
+/*
+** R_DecodeImageMemory
+**
+** Decode a JPG/PNG buffer to RGBA.  Called from async workers; the returned
+** pixels are malloc'd and owned by the caller.
+*/
+byte *R_DecodeImageMemory( const char *name, const void *data, int len, int *width, int *height ) {
+	int lenName = (int)strlen( name );
+	int components;
+	byte *pic;
+	int i, j;
+
+	if ( !data || len <= 0 || lenName < 4 ) {
+		return NULL;
+	}
+	if ( Q_stricmp( name + lenName - 4, ".jpg" ) && Q_stricmp( name + lenName - 4, ".png" ) ) {
+		return NULL;
+	}
+
+	pic = stbi_load_from_memory( (const stbi_uc *)data, len, width, height, &components, STBI_rgb_alpha );
+	if ( !pic ) {
+		return NULL;
+	}
+
+	j = *width * *height * 4;
+	for ( i = 3; i < j; i += 4 ) {
+		pic[i] = 255;
+	}
+	return pic;
+}
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image_resize2.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -1447,15 +1479,36 @@ static void LoadTGA(const char *name, byte **pic, int *width, int *height)
 	ri.FS_FreeFile(buffer);
 }
 
+static byte *R_CopyStbiToEngine( byte *src, int width, int height, int bytesPerPixel ) {
+	byte *dst;
+	int size = width * height * bytesPerPixel;
+
+	if ( !src ) {
+		return NULL;
+	}
+	dst = (byte *)ri.Malloc( size );
+	if ( dst ) {
+		Com_Memcpy( dst, src, size );
+	}
+	free( src );
+	return dst;
+}
+
 static void LoadJPG(const char *filename, byte **pic, int *width, int *height) {
 	byte* fbuffer;
-	int len = ri.FS_ReadFile((char *)filename, (void **)&fbuffer);
+	int len;
+
+	if ( R_AsyncImageTake( filename, pic, width, height ) ) {
+		return;
+	}
+
+	len = ri.FS_ReadFile((char *)filename, (void **)&fbuffer);
 	if (!fbuffer) {
 		return;
 	}
 
 	int components;
-	*pic = stbi_load_from_memory(fbuffer, len, width, height, &components, STBI_rgb_alpha);
+	*pic = R_CopyStbiToEngine( stbi_load_from_memory(fbuffer, len, width, height, &components, STBI_rgb_alpha), *width, *height, 4 );
 	if (*pic == NULL) {
 		ri.FS_FreeFile(fbuffer);
 		return;
@@ -1478,13 +1531,19 @@ static void LoadJPG(const char *filename, byte **pic, int *width, int *height) {
 
 static void LoadPNG(const char* filename, byte** pic, int* width, int* height) {
 	byte* fbuffer;
-	int len = ri.FS_ReadFile((char*)filename, (void**)&fbuffer);
+	int len;
+
+	if ( R_AsyncImageTake( filename, pic, width, height ) ) {
+		return;
+	}
+
+	len = ri.FS_ReadFile((char*)filename, (void**)&fbuffer);
 	if (!fbuffer) {
 		return;
 	}
 
 	int components;
-	*pic = stbi_load_from_memory(fbuffer, len, width, height, &components, STBI_rgb_alpha);
+	*pic = R_CopyStbiToEngine( stbi_load_from_memory(fbuffer, len, width, height, &components, STBI_rgb_alpha), *width, *height, 4 );
 	if (*pic == NULL) {
 		ri.FS_FreeFile(fbuffer);
 		return;
@@ -1513,7 +1572,7 @@ static void LoadPNG16(const char* filename, byte** pic, int* width, int* height)
 	}
 
 	int components;
-	*pic = (byte *)stbi_load_16_from_memory(fbuffer, len, width, height, &components, STBI_rgb_alpha);
+	*pic = R_CopyStbiToEngine( (byte *)stbi_load_16_from_memory(fbuffer, len, width, height, &components, STBI_rgb_alpha), *width, *height, 8 );
 	if (*pic == NULL) {
 		ri.FS_FreeFile(fbuffer);
 		return;

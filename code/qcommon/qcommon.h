@@ -566,6 +566,8 @@ void	FS_FCloseFile( fileHandle_t f );
 // note: you can't just fclose from another DLL, due to MS libc issues
 
 int		FS_ReadFile( const char *qpath, void **buffer );
+int		FS_ReadFileThreaded( const char *qpath, void **buffer );
+// worker-thread read; returns malloc'd data, caller frees
 // returns the length of the file
 // a null buffer will just return the file length without loading
 // as a quick check for existance. -1 length == not present

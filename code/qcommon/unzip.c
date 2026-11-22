@@ -1063,11 +1063,13 @@ static void   zcfree  OF((voidp opaque, voidp ptr));
 #define UNZ_MAXFILENAMEINZIP (256)
 #endif
 
+/* Unzip can run on async image workers.  Keep its private allocations
+ * independent of the main-thread zone allocator. */
 #ifndef ALLOC
-# define ALLOC(size) (Z_Malloc(size))
+# define ALLOC(size) (calloc(1, (size_t)(size)))
 #endif
 #ifndef TRYFREE
-# define TRYFREE(p) {if (p) Z_Free(p);}
+# define TRYFREE(p) {if (p) free(p);}
 #endif
 
 #define SIZECENTRALDIRITEM (0x2e)
@@ -1295,8 +1297,15 @@ extern unzFile unzReOpen (const char* path, unzFile file)
 		return NULL;
 
 	s=(unz_s*)ALLOC(sizeof(unz_s));
+	if (s == NULL) {
+		fclose(fin);
+		return NULL;
+	}
 	Com_Memcpy(s, (unz_s*)file, sizeof(unz_s));
 
+	/* Never alias the source pak's active read state: unzOpenCurrentFile()
+	 * closes it, which would free the original reader's stream/buffer. */
+	s->pfile_in_zip_read = NULL;
 	s->file = fin;
 	return (unzFile)s;	
 }
@@ -4287,13 +4296,13 @@ int inflateSyncPoint(z_streamp z)
 voidp zcalloc (voidp opaque, unsigned items, unsigned size)
 {
     if (opaque) items += size - size; /* make compiler happy */
-    return (voidp)Z_Malloc(items*size);
+    return (voidp)calloc(1, (size_t)items * (size_t)size);
 }
 
 void  zcfree (voidp opaque, voidp ptr)
 {
-    Z_Free(ptr);
-    if (opaque) return; /* make compiler happy */
+    (void)opaque;
+    free(ptr);
 }
 
 

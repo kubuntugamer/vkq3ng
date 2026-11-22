@@ -33,6 +33,29 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "qcommon.h"
 #include "unzip.h"
 
+#ifndef _WIN32
+#include <pthread.h>
+static pthread_mutex_t	fsReadMutex;
+static pthread_cond_t	fsReadCond = PTHREAD_COND_INITIALIZER;
+static pthread_once_t	fsReadMutexOnce = PTHREAD_ONCE_INIT;
+static int				fsThreadedReads;
+
+static void FS_InitReadMutex( void )
+{
+	pthread_mutexattr_t attr;
+	pthread_mutexattr_init( &attr );
+	pthread_mutexattr_settype( &attr, PTHREAD_MUTEX_RECURSIVE );
+	pthread_mutex_init( &fsReadMutex, &attr );
+	pthread_mutexattr_destroy( &attr );
+}
+
+#define FS_READ_LOCK()		do { pthread_once( &fsReadMutexOnce, FS_InitReadMutex ); pthread_mutex_lock( &fsReadMutex ); } while ( 0 )
+#define FS_READ_UNLOCK()	pthread_mutex_unlock( &fsReadMutex )
+#else
+#define FS_READ_LOCK()
+#define FS_READ_UNLOCK()
+#endif
+
 /*
 =============================================================================
 
@@ -816,7 +839,7 @@ For some reason, other dll's can't just cal fclose()
 on files returned by FS_FOpenFile...
 ==============
 */
-void FS_FCloseFile( fileHandle_t f ) {
+static void FS_FCloseFileLocked( fileHandle_t f ) {
 	if ( !fs_searchpaths ) {
 		Com_Error( ERR_FATAL, "Filesystem call made without initialization\n" );
 	}
@@ -838,6 +861,12 @@ void FS_FCloseFile( fileHandle_t f ) {
 		fclose (fsh[f].handleFiles.file.o);
 	}
 	Com_Memset( &fsh[f], 0, sizeof( fsh[f] ) );
+}
+
+void FS_FCloseFile( fileHandle_t f ) {
+	FS_READ_LOCK();
+	FS_FCloseFileLocked( f );
+	FS_READ_UNLOCK();
 }
 
 /*
@@ -985,7 +1014,7 @@ separate file or a ZIP file.
 */
 extern qboolean		com_fullyInitialized;
 
-int FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean uniqueFILE ) {
+static int FS_FOpenFileReadLocked( const char *filename, fileHandle_t *file, qboolean uniqueFILE ) {
 	searchpath_t	*search;
 	char			*netpath;
 	pack_t			*pak;
@@ -1138,10 +1167,9 @@ int FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean uniqueF
 					zfi = (unz_s *)fsh[*file].handleFiles.file.z;
 					// in case the file was new
 					temp = zfi->file;
-					// set the file position in the zip file (also sets the current file info)
-					unzSetCurrentFileInfoPosition(pak->handle, pakFile->pos);
-					// copy the file info into the unzip structure
-					Com_Memcpy( zfi, pak->handle, sizeof(unz_s) );
+					// set the file position on our own unzip structure; never mutate
+					// the shared pak handle from a worker thread
+					unzSetCurrentFileInfoPosition(zfi, pakFile->pos);
 					// we copy this back into the structure
 					zfi->file = temp;
 					// open the file in the zip
@@ -1251,7 +1279,7 @@ int FS_Read2( void *buffer, int len, fileHandle_t f ) {
 	}
 }
 
-int FS_Read( void *buffer, int len, fileHandle_t f ) {
+static int FS_ReadLocked( void *buffer, int len, fileHandle_t f ) {
 	int		block, remaining;
 	int		read;
 	byte	*buf;
@@ -1295,6 +1323,22 @@ int FS_Read( void *buffer, int len, fileHandle_t f ) {
 	} else {
 		return unzReadCurrentFile(fsh[f].handleFiles.file.z, buffer, len);
 	}
+}
+
+int FS_FOpenFileRead( const char *filename, fileHandle_t *file, qboolean uniqueFILE ) {
+	int ret;
+	FS_READ_LOCK();
+	ret = FS_FOpenFileReadLocked( filename, file, uniqueFILE );
+	FS_READ_UNLOCK();
+	return ret;
+}
+
+int FS_Read( void *buffer, int len, fileHandle_t f ) {
+	int ret;
+	FS_READ_LOCK();
+	ret = FS_ReadLocked( buffer, len, f );
+	FS_READ_UNLOCK();
+	return ret;
 }
 
 /*
@@ -1486,6 +1530,65 @@ int	FS_FileIsInPAK(const char *filename, int *pChecksum ) {
 		}
 	}
 	return -1;
+}
+
+/*
+============
+FS_ReadFileThreaded
+
+Read a file into malloc memory from a worker thread.  The pak's unique
+handle keeps decompression independent, while the FS table itself is locked
+for open/close.
+============
+*/
+int FS_ReadFileThreaded( const char *qpath, void **buffer ) {
+	fileHandle_t	h = 0;
+	byte			*buf;
+	int				len;
+	int				read;
+
+	*buffer = NULL;
+
+	FS_READ_LOCK();
+	len = FS_FOpenFileRead( qpath, &h, qtrue );
+	if ( !h || len < 0 ) {
+		if ( h ) {
+			FS_FCloseFile( h );
+		}
+		FS_READ_UNLOCK();
+		return -1;
+	}
+
+	buf = malloc( (size_t)len + 1 );
+	if ( !buf ) {
+		FS_FCloseFile( h );
+		FS_READ_UNLOCK();
+		return -1;
+	}
+
+#ifndef _WIN32
+	fsThreadedReads++;
+#endif
+	FS_READ_UNLOCK();
+
+	read = FS_ReadLocked( buf, len, h );
+
+	FS_READ_LOCK();
+#ifndef _WIN32
+	fsThreadedReads--;
+	pthread_cond_broadcast( &fsReadCond );
+#endif
+	FS_FCloseFile( h );
+	FS_READ_UNLOCK();
+
+	if ( read != len ) {
+		free( buf );
+		return -1;
+	}
+
+	buf[len] = 0;
+	*buffer = buf;
+	return len;
 }
 
 /*
@@ -2653,6 +2756,12 @@ void FS_Shutdown( qboolean closemfp ) {
 	searchpath_t	*p, *next;
 	int	i;
 
+	FS_READ_LOCK();
+#ifndef _WIN32
+	while ( fsThreadedReads ) {
+		pthread_cond_wait( &fsReadCond, &fsReadMutex );
+	}
+#endif
 	for(i = 0; i < MAX_FILE_HANDLES; i++) {
 		if (fsh[i].fileSize) {
 			FS_FCloseFile(i);
@@ -2687,6 +2796,7 @@ void FS_Shutdown( qboolean closemfp ) {
 		fclose(missingFiles);
 	}
 #endif
+	FS_READ_UNLOCK();
 }
 
 void Com_AppendCDKey( const char *filename );
@@ -2741,6 +2851,12 @@ static void FS_Startup( const char *gameName ) {
         const char *homePath;
 	cvar_t	*fs;
 
+	FS_READ_LOCK();
+#ifndef _WIN32
+	while ( fsThreadedReads ) {
+		pthread_cond_wait( &fsReadCond, &fsReadMutex );
+	}
+#endif
 	Com_Printf( "----- FS_Startup -----\n" );
 
 	fs_debug = Cvar_Get( "fs_debug", "0", 0 );
@@ -2824,6 +2940,7 @@ static void FS_Startup( const char *gameName ) {
 	}
 #endif
 	Com_Printf( "%d files in pk3 files\n", fs_packFiles );
+	FS_READ_UNLOCK();
 }
 
 

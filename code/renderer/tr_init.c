@@ -1773,6 +1773,10 @@ void RE_Shutdown( qboolean destroyWindow ) {
 		}
 	}
 
+	if ( destroyWindow ) {
+		R_AsyncImageShutdown();
+	}
+
 	R_DoneFreeType();
 
 	// shut down platform specific OpenGL/Vulkan stuff

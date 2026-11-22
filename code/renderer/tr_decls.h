@@ -141,6 +141,10 @@ int R_LerpTag(orientation_t *tag, qhandle_t handle, int startFrame, int endFrame
 int R_LightForPoint(vec3_t point, vec3_t ambientLight, vec3_t directedLight, vec3_t lightDir);
 void R_LoadImage(const char *name, byte **pic, int *width, int *height);
 void R_LoadImage16(const char* name, byte * *pic, int* width, int* height);
+byte *R_DecodeImageMemory(const char *name, const void *data, int len, int *width, int *height);
+void R_AsyncImagePrefetch(const char *path);
+qboolean R_AsyncImageTake(const char *path, byte **pic, int *width, int *height);
+void R_AsyncImageShutdown(void);
 void R_LocalNormalToWorld(vec3_t local, vec3_t world);
 void R_LocalPointToWorld(vec3_t local, vec3_t world);
 int R_MarkFragments(int numPoints, const vec3_t *points, const vec3_t projection, int maxPoints, vec3_t pointBuffer, int maxFragments, markFragment_t *fragmentBuffer);

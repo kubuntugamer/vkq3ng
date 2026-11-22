@@ -2955,6 +2955,46 @@ void	R_ShaderList_f (void) {
 
 /*
 ====================
+R_PrefetchShaderImages
+
+Walk the combined shader text once and queue JPG/PNG image paths for
+asynchronous decoding, ahead of the world/model loads that consume them.
+====================
+*/
+static void R_PrefetchShaderImages( void )
+{
+	char *p = s_shaderText;
+	char *token;
+
+	if ( !p ) {
+		return;
+	}
+
+	while ( 1 ) {
+		int len;
+
+		token = COM_ParseExt( &p, qtrue );
+		if ( !token[0] ) {
+			break;
+		}
+		R_AsyncImagePrefetch( token );
+
+		/* R_LoadImage falls back from a missing .tga to the .jpg beside it;
+		 * HD packs commonly ship only the JPG. */
+		len = (int)strlen( token );
+		if ( len >= 5 && !Q_stricmp( token + len - 4, ".tga" ) ) {
+			char alt[MAX_QPATH];
+			Q_strncpyz( alt, token, sizeof( alt ) );
+			alt[len - 3] = 'j';
+			alt[len - 2] = 'p';
+			alt[len - 1] = 'g';
+			R_AsyncImagePrefetch( alt );
+		}
+	}
+}
+
+/*
+====================
 ScanAndLoadShaderFiles
 
 Finds and loads all .shader files, combining them into
@@ -3075,6 +3115,8 @@ static void ScanAndLoadShaderFiles( void )
 			}
 		}
 	}
+
+	R_PrefetchShaderImages();
 
 	return;
 
