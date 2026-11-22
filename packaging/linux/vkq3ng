@@ -1,0 +1,7 @@
+#!/bin/sh
+# vkq3ng launcher.  Q3_BASE selects the directory containing baseq3/;
+# Q3_HOME selects the writable homepath (configs, screenshots).
+exec /usr/lib/vkq3ng/bin/quake3 \
+    +set fs_basePath "${Q3_BASE:-/usr/share/vkq3ng}" \
+    +set fs_homePath "${Q3_HOME:-$HOME/.q3a}" \
+    "$@"

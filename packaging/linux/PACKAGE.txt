@@ -1,0 +1,32 @@
+vkq3ng reforged - Linux package
+================================
+
+System install layout
+---------------------
+  /usr/bin/vkq3ng                         launcher
+  /usr/lib/vkq3ng/bin/quake3              game binary
+  /usr/lib/vkq3ng/bin/lib*.so             game modules
+  /usr/share/vkq3ng/baseq3/blue_noise_textures
+                                          required by the RTX renderer
+  /usr/share/doc/vkq3ng/                  README, package notes, licenses
+
+Game data
+---------
+Quake III Arena data is not included.  Put pak0.pk3 ... pak8.pk3 and q3key
+in /usr/share/vkq3ng/baseq3/, or point the launcher at another install:
+
+  Q3_BASE=/path/to/Quake3 vkq3ng
+
+A writable homepath defaults to $HOME/.q3a.  Override it with Q3_HOME.
+
+Examples
+--------
+  vkq3ng
+  vkq3ng +map q3dm1
+  vkq3ng +set r_vertexLight 2       # RTX path tracing
+
+The game loads libui.so, libcgame.so and libqagame.so from
+/usr/lib/vkq3ng/bin/.  Keep that directory intact.
+
+Third-party HD texture packs are not bundled.  See the repository README
+for download links and their separate licenses.

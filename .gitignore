@@ -396,3 +396,7 @@ ASALocalRun/
 
 # End of https://www.gitignore.io/api/visualstudio
 
+
+# Release build/package outputs
+_release/
+dist/

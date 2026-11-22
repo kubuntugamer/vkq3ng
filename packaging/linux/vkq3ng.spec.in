@@ -1,0 +1,32 @@
+Name:           vkq3ng
+Version:        @VERSION@
+Release:        @RELEASE@
+Summary:        Vulkan Quake III Arena engine with native Wayland and RTX
+License:        GPL-2.0-or-later
+URL:            https://github.com/kubuntugamer/vkq3ng
+BuildArch:      @ARCH@
+AutoReqProv:    yes
+
+%description
+A Linux-focused continuation of vkq3ng, the Vulkan and ray-tracing fork
+of Quake III Arena.  It provides native Wayland windowing, PipeWire
+audio, cross-vendor KHR ray tracing, DLSS, FSR2, EASU, and NVIDIA Reflex.
+
+This package contains the engine binaries and the CC0 blue-noise
+textures required by the RTX renderer.  Quake III Arena data files and
+third-party texture packs are not included.
+
+%install
+rm -rf %{buildroot}
+cp -a @STAGE_ROOT@/. %{buildroot}/
+
+%files
+%defattr(-,root,root,-)
+/usr/bin/vkq3ng
+/usr/lib/vkq3ng
+/usr/share/vkq3ng
+/usr/share/doc/vkq3ng
+
+%changelog
+* Sun Nov 22 2026 kubuntugamer <kubuntugamer@users.noreply.github.com> - @VERSION@-@RELEASE@
+- Initial packaged release.
