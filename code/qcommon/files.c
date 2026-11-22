@@ -39,6 +39,7 @@ static pthread_mutex_t	fsReadMutex;
 static pthread_cond_t	fsReadCond = PTHREAD_COND_INITIALIZER;
 static pthread_once_t	fsReadMutexOnce = PTHREAD_ONCE_INIT;
 static int				fsThreadedReads;
+static qboolean			fsShutdown;
 
 static void FS_InitReadMutex( void )
 {
@@ -1550,6 +1551,10 @@ int FS_ReadFileThreaded( const char *qpath, void **buffer ) {
 	*buffer = NULL;
 
 	FS_READ_LOCK();
+	if ( fsShutdown ) {
+		FS_READ_UNLOCK();
+		return -1;
+	}
 	len = FS_FOpenFileRead( qpath, &h, qtrue );
 	if ( !h || len < 0 ) {
 		if ( h ) {
@@ -2757,6 +2762,7 @@ void FS_Shutdown( qboolean closemfp ) {
 	int	i;
 
 	FS_READ_LOCK();
+	fsShutdown = qtrue;
 #ifndef _WIN32
 	while ( fsThreadedReads ) {
 		pthread_cond_wait( &fsReadCond, &fsReadMutex );
@@ -2852,6 +2858,7 @@ static void FS_Startup( const char *gameName ) {
 	cvar_t	*fs;
 
 	FS_READ_LOCK();
+	fsShutdown = qfalse;
 #ifndef _WIN32
 	while ( fsThreadedReads ) {
 		pthread_cond_wait( &fsReadCond, &fsReadMutex );

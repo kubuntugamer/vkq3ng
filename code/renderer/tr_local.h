@@ -1679,7 +1679,7 @@ typedef struct {
 
 	GlobalUbo			uboGlobal[VK_MAX_SWAPCHAIN_SIZE];
 	vkbuffer_t			uboBuffer[VK_MAX_SWAPCHAIN_SIZE];
-	int					prevToCurrInstance[300];
+	int					prevToCurrInstance[VK_MAX_BOTTOM_AS_INSTANCES + 1];
 	vkbuffer_t			prevToCurrInstanceBuffer[VK_MAX_SWAPCHAIN_SIZE];
 	vkbuffer_t			uboLightList[VK_MAX_SWAPCHAIN_SIZE];
 	LightList_s			lightList;

@@ -309,7 +309,7 @@ static void RB_UpdateRayTraceAS(drawSurf_t* drawSurfs, int numDrawSurfs) {
 	qboolean		dynamic, forceUpdate;
 
 	
-	Com_Memset(vk_d.prevToCurrInstance, -1, 300 * sizeof(vk_d.prevToCurrInstance[0]));
+	Com_Memset(vk_d.prevToCurrInstance, -1, sizeof(vk_d.prevToCurrInstance));
 
 	// save original time for entity shader offsets
 	originalTime = backEnd.refdef.floatTime;
