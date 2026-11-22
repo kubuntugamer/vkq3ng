@@ -1513,6 +1513,9 @@ typedef enum {
 typedef struct {
     size_t              size; // images
     vkimage_t           images[MAX_DRAWIMAGES];
+    /* Valid 1x1 texture used to keep every image-array slot bindable while a
+     * new level is loading and tr.images has not been repopulated yet. */
+    vkimage_t           imageFallback;
 
 	VkDeviceSize		offsetIdx;
     vkbuffer_t			indexbuffer;
@@ -2020,6 +2023,7 @@ qboolean	GLimp_SpawnRenderThread( void (*function)( void ) );
 void		*GLimp_RendererSleep( void );
 void		GLimp_FrontEndSleep( void );
 void		GLimp_WakeRenderer( void *data );
+void		GLimp_JoinRenderThread( void );
 
 void		GLimp_LogComment( char *comment );
 

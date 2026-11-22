@@ -1,3 +1,5 @@
+find_package(Threads REQUIRED)
+
 # SOURCE AND HEADER FILES
 # add all src files and create file hierarchy for IDE
 file(GLOB_RECURSE SOURCES *.cpp *.c *.m *.mm *.hpp *.h ../qcommon/*.cpp ../qcommon/*.c ../qcommon/*.m ../qcommon/*.mm ../qcommon/*.hpp ../qcommon/*.h ../client/*.cpp ../client/*.c ../client/*.m ../client/*.mm ../client/*.hpp ../client/*.h ../server/*.cpp ../server/*.c ../server/*.m ../server/*.mm ../server/*.hpp ../server/*.h)
@@ -101,6 +103,8 @@ if(XXF86DGA_LIBRARY)
     target_link_libraries(${APP_UNIX} "${XXF86DGA_LIBRARY}")
 endif()
 target_link_libraries(${APP_UNIX} "-lm -lXxf86vm -lXext -lX11")
+target_link_libraries(${APP_UNIX} Threads::Threads)
+target_compile_definitions(${APP_UNIX} PRIVATE SMP=1)
 target_link_libraries(${APP_UNIX} ${LIB_BOTLIB})
 target_link_libraries(${APP_UNIX} ${LIB_RENDERER})
 target_link_libraries(${APP_UNIX} ${LIB_SPLINES})

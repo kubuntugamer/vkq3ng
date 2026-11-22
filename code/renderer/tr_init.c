@@ -654,6 +654,14 @@ static void InitVulkan(void)
 		VK_AddSamplerCount(&vk_d.imageDescriptor, 0, VK_GLOBAL_IMAGEARRAY_SHADER_STAGE_FLAGS, MAX_DRAWIMAGES);
 		VK_FinishDescriptorWithoutUpdate(&vk_d.imageDescriptor);
 
+		/* Fallback texture for slots not yet populated after a level change. */
+		VK_CreateImage(&vk_d.imageFallback, 1, 1, VK_FORMAT_R8G8B8A8_UNORM,
+		               VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 1);
+		VK_CreateSampler(&vk_d.imageFallback, VK_FILTER_NEAREST, VK_FILTER_NEAREST,
+		                 VK_SAMPLER_MIPMAP_MODE_NEAREST, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
+		VK_TransitionImage(&vk_d.imageFallback, VK_IMAGE_LAYOUT_UNDEFINED,
+		                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
 		// device infos
 		VkPhysicalDeviceProperties devProperties;
 		vkGetPhysicalDeviceProperties(vk.physicalDevice, &devProperties);
@@ -1344,7 +1352,7 @@ void GfxInfo_f( void )
 		ri.Printf( PRINT_ALL, "HACK: using vertex lightmap approximation\n" );
 	}
 	if ( glConfig.smpActive ) {
-		ri.Printf( PRINT_ALL, "Using dual processor acceleration\n" );
+		ri.Printf( PRINT_ALL, "Using render-thread acceleration (%u cores)\n", Sys_ProcessorCount() );
 	}
 	if ( r_finish->integer ) {
 		ri.Printf( PRINT_ALL, "Forcing glFinish\n" );
@@ -1404,10 +1412,10 @@ void R_Register( void )
 	r_uiFullScreen = ri.Cvar_Get( "r_uifullscreen", "0", 0);
 	r_subdivisions = ri.Cvar_Get ("r_subdivisions", "4", CVAR_ARCHIVE | CVAR_LATCH);
 	
-#if (defined(__APPLE__) || defined(__linux__)) && defined(SMP)
-  // Default to using SMP on Mac OS X or Linux if we have multiple processors
+#if defined(SMP)
+	// Use the render thread by default on any multicore system.
 	r_smp = ri.Cvar_Get( "r_smp", Sys_ProcessorCount() > 1 ? "1" : "0", CVAR_ARCHIVE | CVAR_LATCH);
-#else        
+#else
 	r_smp = ri.Cvar_Get( "r_smp", "0", CVAR_ARCHIVE | CVAR_LATCH);
 #endif
 	r_ignoreFastPath = ri.Cvar_Get( "r_ignoreFastPath", "1", CVAR_ARCHIVE | CVAR_LATCH );
@@ -1634,6 +1642,13 @@ void R_Init( void ) {
 	R_ModelInit();
 
 	R_InitFreeType();
+
+	/* InitVulkan()/InitOpenGL() spawn the render thread on the first call.
+	 * A level change tears the renderer down and calls R_Init() again with
+	 * the window still alive, so restart the thread here. */
+	if (!glConfig.smpActive) {
+		R_InitCommandBuffers();
+	}
 
 	if (glConfig.driverType == OPENGL) {
 		err = qglGetError();

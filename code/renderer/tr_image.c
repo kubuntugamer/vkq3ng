@@ -2051,6 +2051,19 @@ void R_DeleteTextures(void) {
 	if (glConfig.driverType == VULKAN) {
 		VK_DestroyImage(&vk_d.accelerationStructures.envmap);
 		vk_d.size = 0;
+
+		/* The image array is a single descriptor set.  Point every slot at the
+		 * persistent fallback until the next level fills them in; otherwise a
+		 * shader can sample a destroyed image and fault the GPU. */
+		if (vk_d.imageFallback.handle) {
+			for (int i = 0; i < MAX_DRAWIMAGES; i++) {
+				VK_SetSamplerPosition(&vk_d.imageDescriptor, 0, VK_GLOBAL_IMAGEARRAY_SHADER_STAGE_FLAGS,
+				                      vk_d.imageFallback.sampler, vk_d.imageFallback.view, i);
+			}
+			VK_SetUpdateSize(&vk_d.imageDescriptor, 0, VK_GLOBAL_IMAGEARRAY_SHADER_STAGE_FLAGS, MAX_DRAWIMAGES);
+			VK_UpdateDescriptorSet(&vk_d.imageDescriptor);
+			vk_d.imageDescriptor.needsUpdate = qfalse;
+		}
 	}
 
 	Com_Memset(glState.currenttextures, 0, sizeof(glState.currenttextures));

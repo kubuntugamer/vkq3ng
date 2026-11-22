@@ -84,7 +84,7 @@ R_InitCommandBuffers
 void R_InitCommandBuffers( void ) {
 	glConfig.smpActive = qfalse;
 	if ( r_smp->integer ) {
-		ri.Printf( PRINT_ALL, "Trying SMP acceleration...\n" );
+		ri.Printf( PRINT_ALL, "Trying SMP acceleration (%u cores)...\n", Sys_ProcessorCount() );
 		if ( GLimp_SpawnRenderThread( RB_RenderThread ) ) {
 			ri.Printf( PRINT_ALL, "...succeeded.\n" );
 			glConfig.smpActive = qtrue;
@@ -104,6 +104,7 @@ void R_ShutdownCommandBuffers( void ) {
 	if ( glConfig.smpActive ) {
 		GLimp_WakeRenderer( NULL );
 		glConfig.smpActive = qfalse;
+		GLimp_JoinRenderThread();
 	}
 }
 

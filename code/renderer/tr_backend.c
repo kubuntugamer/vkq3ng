@@ -944,6 +944,7 @@ void RB_RenderThread( void ) {
 		data = GLimp_RendererSleep();
 
 		if ( !data ) {
+			renderThreadActive = qfalse;
 			return;	// all done, renderer is shutting down
 		}
 

@@ -1130,3 +1130,11 @@ void GLimp_WakeRenderer( void *data ) {
 	WaitForSingleObject( renderActiveEvent, INFINITE );
 }
 
+void GLimp_JoinRenderThread( void ) {
+	if ( renderThreadHandle ) {
+		WaitForSingleObject( renderThreadHandle, INFINITE );
+		CloseHandle( renderThreadHandle );
+		renderThreadHandle = NULL;
+	}
+}
+

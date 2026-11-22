@@ -39,6 +39,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifdef __linux__
   #include <sys/stat.h>
   #include <sys/vt.h>
+  #include <sys/prctl.h>
 #endif
 #include <stdarg.h>
 #include <stdio.h>
@@ -1612,13 +1613,26 @@ static pthread_cond_t		renderCompletedEvent = PTHREAD_COND_INITIALIZER;
 
 static void (*glimpRenderThread)( void );
 
+static pthread_t renderThreadHandle;
+static qboolean renderThreadSpawned = qfalse;
+static qboolean renderThreadQuit = qfalse;
+static qboolean smpPrimitivesInitialized = qfalse;
+
+static volatile void    *smpData = NULL;
+static volatile qboolean smpDataReady;
+
 static void *GLimp_RenderThreadWrapper( void *arg )
 {
+#ifdef __linux__
+	prctl( PR_SET_NAME, "quake3-render", 0, 0, 0 );
+#endif
 	Com_Printf( "Render thread starting\n" );
 
-  glimpRenderThread();
+	glimpRenderThread();
 
-	qglXMakeCurrent( dpy, None, NULL );
+	if ( glConfig.driverType == OPENGL ) {
+		qglXMakeCurrent( dpy, None, NULL );
+	}
 
 	Com_Printf( "Render thread terminating\n" );
 
@@ -1627,41 +1641,51 @@ static void *GLimp_RenderThreadWrapper( void *arg )
 
 qboolean GLimp_SpawnRenderThread( void (*function)( void ) )
 {
-	pthread_t renderThread;
 	int ret;
 
-	pthread_mutex_init( &smpMutex, NULL );
+	if ( !smpPrimitivesInitialized ) {
+		pthread_mutex_init( &smpMutex, NULL );
+		pthread_cond_init( &renderCommandsEvent, NULL );
+		pthread_cond_init( &renderCompletedEvent, NULL );
+		smpPrimitivesInitialized = qtrue;
+	}
 
-	pthread_cond_init( &renderCommandsEvent, NULL );
-	pthread_cond_init( &renderCompletedEvent, NULL );
+	glimpRenderThread = function;
+	renderThreadSpawned = qfalse;
+	renderThreadQuit = qfalse;
+	smpData = NULL;
+	smpDataReady = qfalse;
 
-  glimpRenderThread = function;
-
-	ret = pthread_create( &renderThread,
+	ret = pthread_create( &renderThreadHandle,
 						  NULL,			// attributes
 						  GLimp_RenderThreadWrapper,
 						  NULL );		// argument
 	if ( ret ) {
 		ri.Printf( PRINT_ALL, "pthread_create returned %d: %s", ret, strerror( ret ) );
-    return qfalse;
-	} else {
-		ret = pthread_detach( renderThread );
-		if ( ret ) {
-			ri.Printf( PRINT_ALL, "pthread_detach returned %d: %s", ret, strerror( ret ) );
-		}
-  }
+		return qfalse;
+	}
 
-  return qtrue;
+	renderThreadSpawned = qtrue;
+	return qtrue;
 }
 
-static volatile void    *smpData = NULL;
-static volatile qboolean smpDataReady;
+void GLimp_JoinRenderThread( void )
+{
+	if ( !renderThreadSpawned ) {
+		return;
+	}
+
+	pthread_join( renderThreadHandle, NULL );
+	renderThreadSpawned = qfalse;
+}
 
 void *GLimp_RendererSleep( void )
 {
 	void  *data;
 
-	qglXMakeCurrent( dpy, None, NULL );
+	if ( glConfig.driverType == OPENGL ) {
+		qglXMakeCurrent( dpy, None, NULL );
+	}
 
 	pthread_mutex_lock( &smpMutex );
 	{
@@ -1671,15 +1695,17 @@ void *GLimp_RendererSleep( void )
 		// after this, the front end can exit GLimp_FrontEndSleep
 		pthread_cond_signal( &renderCompletedEvent );
 
-		while ( !smpDataReady ) {
+		while ( !smpDataReady && !renderThreadQuit ) {
 			pthread_cond_wait( &renderCommandsEvent, &smpMutex );
 		}
 
-		data = (void *)smpData;
+		data = renderThreadQuit ? NULL : (void *)smpData;
 	}
 	pthread_mutex_unlock( &smpMutex );
 
-	qglXMakeCurrent( dpy, win, ctx );
+	if ( glConfig.driverType == OPENGL ) {
+		qglXMakeCurrent( dpy, win, ctx );
+	}
 
   return data;
 }
@@ -1694,17 +1720,24 @@ void GLimp_FrontEndSleep( void )
 	}
 	pthread_mutex_unlock( &smpMutex );
 
-	qglXMakeCurrent( dpy, win, ctx );
+	if ( glConfig.driverType == OPENGL ) {
+		qglXMakeCurrent( dpy, win, ctx );
+	}
 }
 
 void GLimp_WakeRenderer( void *data )
 {
-	qglXMakeCurrent( dpy, None, NULL );
+	if ( glConfig.driverType == OPENGL ) {
+		qglXMakeCurrent( dpy, None, NULL );
+	}
 
 	pthread_mutex_lock( &smpMutex );
 	{
 		assert( smpData == NULL );
 		smpData = data;
+		if ( !data ) {
+			renderThreadQuit = qtrue;
+		}
 		smpDataReady = qtrue;
 
 		// after this, the renderer can continue through GLimp_RendererSleep
@@ -1725,6 +1758,7 @@ void *GLimp_RendererSleep( void ) {
 }
 void GLimp_FrontEndSleep( void ) {}
 void GLimp_WakeRenderer( void *data ) {}
+void GLimp_JoinRenderThread( void ) {}
 
 #endif
 
