@@ -512,7 +512,7 @@ static void InitVulkan(void)
 
 			// world buffers
 			// static
-			VK_CreateRayTracingASBuffer(&vk_d.basBufferStaticWorld, 50 * VK_AS_MEMORY_ALLIGNMENT_SIZE * sizeof(byte));
+			VK_CreateRayTracingASBuffer(&vk_d.basBufferStaticWorld, VK_AS_STATIC_WORLD_BLOCKS * VK_AS_MEMORY_ALLIGNMENT_SIZE * sizeof(byte));
 			VK_CreateAttributeBuffer(&vk_d.geometry.idx_world_static, RTX_WORLD_STATIC_IDX_SIZE * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 			VK_CreateAttributeBuffer(&vk_d.geometry.xyz_world_static, RTX_WORLD_STATIC_XYZ_SIZE * sizeof(VertexBuffer), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 			VK_CreateAttributeBuffer(&vk_d.geometry.cluster_world_static, RTX_WORLD_STATIC_IDX_SIZE/3 * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
@@ -528,13 +528,13 @@ static void InitVulkan(void)
 			}
 			VK_CreateAttributeBuffer(&vk_d.geometry.cluster_world_dynamic_data, RTX_WORLD_DYNAMIC_DATA_IDX_SIZE / 3 * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
-			VK_CreateRayTracingASBuffer(&vk_d.basBufferWorldDynamicData, 10 * VK_AS_MEMORY_ALLIGNMENT_SIZE * sizeof(byte));
+			VK_CreateRayTracingASBuffer(&vk_d.basBufferWorldDynamicData, VK_AS_WORLD_DYNAMIC_BLOCKS * VK_AS_MEMORY_ALLIGNMENT_SIZE * sizeof(byte));
 			// dynamic AS
 			vk_d.basBufferEntityDynamicOffset = 0;
 			for (int i = 0; i < vk.swapchain.imageCount; i++) {
 				VK_CreateAttributeBuffer(&vk_d.geometry.idx_world_dynamic_as[i], RTX_WORLD_DYNAMIC_AS_IDX_SIZE * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 				VK_CreateAttributeBuffer(&vk_d.geometry.xyz_world_dynamic_as[i], RTX_WORLD_DYNAMIC_AS_XYZ_SIZE * sizeof(VertexBuffer), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-				VK_CreateRayTracingASBuffer(&vk_d.basBufferWorldDynamicAS[i], 10 * VK_AS_MEMORY_ALLIGNMENT_SIZE * sizeof(byte));
+				VK_CreateRayTracingASBuffer(&vk_d.basBufferWorldDynamicAS[i], VK_AS_WORLD_DYNAMIC_BLOCKS * VK_AS_MEMORY_ALLIGNMENT_SIZE * sizeof(byte));
 			}
 			VK_CreateAttributeBuffer(&vk_d.geometry.cluster_world_dynamic_as, RTX_WORLD_DYNAMIC_AS_IDX_SIZE / 3 * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 
@@ -549,7 +549,7 @@ static void InitVulkan(void)
 			for (int i = 0; i < vk.swapchain.imageCount; i++) {
 				VK_CreateAttributeBuffer(&vk_d.geometry.idx_entity_dynamic[i], RTX_ENTITY_DYNAMIC_IDX_SIZE * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 				VK_CreateAttributeBuffer(&vk_d.geometry.xyz_entity_dynamic[i], RTX_ENTITY_DYNAMIC_XYZ_SIZE * sizeof(VertexBuffer), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-				VK_CreateRayTracingASBuffer(&vk_d.basBufferEntityDynamic[i], 100 * VK_AS_MEMORY_ALLIGNMENT_SIZE * sizeof(byte));
+				VK_CreateRayTracingASBuffer(&vk_d.basBufferEntityDynamic[i], VK_AS_ENTITY_DYNAMIC_BLOCKS * VK_AS_MEMORY_ALLIGNMENT_SIZE * sizeof(byte));
 				// Per Frame Dynamic AS List
 				vk_d.bottomASDynamicList[i] = calloc(VK_MAX_DYNAMIC_BOTTOM_AS_INSTANCES, sizeof(vkbottomAS_t));
 				vk_d.bottomASDynamicCount[i] = 0;
@@ -558,7 +558,7 @@ static void InitVulkan(void)
 			// stuff we need for each swapchain image
 			for (int i = 0; i < vk.swapchain.imageCount; i++) {
 				// Top AS Buffer
-				VK_CreateRayTracingASBuffer(&vk_d.topASBuffer[i], 20 * VK_AS_MEMORY_ALLIGNMENT_SIZE);
+				VK_CreateRayTracingASBuffer(&vk_d.topASBuffer[i], VK_AS_TOP_LEVEL_BLOCKS * VK_AS_MEMORY_ALLIGNMENT_SIZE);
 				// Per Instance Buffers
 				VK_CreateRayTracingBuffer(&vk_d.instanceBuffer[i], VK_MAX_BOTTOM_AS_INSTANCES * sizeof(VkGeometryInstanceNV));
 				VK_CreateAttributeBuffer(&vk_d.instanceDataBuffer[i], VK_MAX_BOTTOM_AS_INSTANCES * sizeof(ASInstanceData), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);

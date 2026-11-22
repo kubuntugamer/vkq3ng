@@ -1047,6 +1047,12 @@ Vulkan
 // RTX
 // the aligment size for AS buffers
 #define VK_AS_MEMORY_ALLIGNMENT_SIZE 65536
+/* AS storage reservations, in 64 KiB blocks.  Large HD maps (q3dm7/q3dm17)
+ * need considerably more world BLAS storage than the original reservations. */
+#define VK_AS_STATIC_WORLD_BLOCKS 96
+#define VK_AS_WORLD_DYNAMIC_BLOCKS 10
+#define VK_AS_ENTITY_DYNAMIC_BLOCKS 100
+#define VK_AS_TOP_LEVEL_BLOCKS 20
 
 #define VK_MAX_BOTTOM_AS 768
 #define VK_MAX_STATIC_BOTTOM_AS_INSTANCES 16
