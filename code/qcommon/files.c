@@ -659,6 +659,10 @@ fileHandle_t FS_SV_FOpenFileWrite( const char *filename ) {
 	ospath = FS_BuildOSPath( fs_homepath->string, filename, "" );
 	ospath[strlen(ospath)-1] = '\0';
 
+	/* Reserve the handle under the same lock threaded readers use, then
+	 * keep it held until the stream is installed.  Otherwise a worker can
+	 * grab the same slot between FS_HandleForFile() and fopen(). */
+	FS_READ_LOCK();
 	f = FS_HandleForFile();
 	fsh[f].zipFile = qfalse;
 
@@ -667,6 +671,7 @@ fileHandle_t FS_SV_FOpenFileWrite( const char *filename ) {
 	}
 
 	if( FS_CreatePath( ospath ) ) {
+		FS_READ_UNLOCK();
 		return 0;
 	}
 
@@ -677,8 +682,10 @@ fileHandle_t FS_SV_FOpenFileWrite( const char *filename ) {
 
 	fsh[f].handleSync = qfalse;
 	if (!fsh[f].handleFiles.file.o) {
+		Com_Memset( &fsh[f], 0, sizeof( fsh[f] ) );
 		f = 0;
 	}
+	FS_READ_UNLOCK();
 	return f;
 }
 
@@ -697,6 +704,7 @@ int FS_SV_FOpenFileRead( const char *filename, fileHandle_t *fp ) {
 		Com_Error( ERR_FATAL, "Filesystem call made without initialization\n" );
 	}
 
+	FS_READ_LOCK();
 	f = FS_HandleForFile();
 	fsh[f].zipFile = qfalse;
 
@@ -760,8 +768,11 @@ int FS_SV_FOpenFileRead( const char *filename, fileHandle_t *fp ) {
   
 	*fp = f;
 	if (f) {
-		return FS_filelength(f);
+		int len = FS_filelength(f);
+		FS_READ_UNLOCK();
+		return len;
 	}
+	FS_READ_UNLOCK();
 	return 0;
 }
 
@@ -884,6 +895,7 @@ fileHandle_t FS_FOpenFileWrite( const char *filename ) {
 		Com_Error( ERR_FATAL, "Filesystem call made without initialization\n" );
 	}
 
+	FS_READ_LOCK();
 	f = FS_HandleForFile();
 	fsh[f].zipFile = qfalse;
 
@@ -894,6 +906,7 @@ fileHandle_t FS_FOpenFileWrite( const char *filename ) {
 	}
 
 	if( FS_CreatePath( ospath ) ) {
+		FS_READ_UNLOCK();
 		return 0;
 	}
 
@@ -906,8 +919,10 @@ fileHandle_t FS_FOpenFileWrite( const char *filename ) {
 
 	fsh[f].handleSync = qfalse;
 	if (!fsh[f].handleFiles.file.o) {
+		Com_Memset( &fsh[f], 0, sizeof( fsh[f] ) );
 		f = 0;
 	}
+	FS_READ_UNLOCK();
 	return f;
 }
 
@@ -925,6 +940,7 @@ fileHandle_t FS_FOpenFileAppend( const char *filename ) {
 		Com_Error( ERR_FATAL, "Filesystem call made without initialization\n" );
 	}
 
+	FS_READ_LOCK();
 	f = FS_HandleForFile();
 	fsh[f].zipFile = qfalse;
 
@@ -940,14 +956,17 @@ fileHandle_t FS_FOpenFileAppend( const char *filename ) {
 	}
 
 	if( FS_CreatePath( ospath ) ) {
+		FS_READ_UNLOCK();
 		return 0;
 	}
 
 	fsh[f].handleFiles.file.o = fopen( ospath, "ab" );
 	fsh[f].handleSync = qfalse;
 	if (!fsh[f].handleFiles.file.o) {
+		Com_Memset( &fsh[f], 0, sizeof( fsh[f] ) );
 		f = 0;
 	}
+	FS_READ_UNLOCK();
 	return f;
 }
 
