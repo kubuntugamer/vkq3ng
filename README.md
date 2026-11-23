@@ -29,6 +29,8 @@ It still uses your own Quake III Arena data files. No game assets are included.
   fixed-size zone.
 - **Parallel asset decoding** for JPG/PNG textures, including `.tga` → `.jpg` fallbacks,
   with a decoded-image cache reused across map loads.
+- **Serialized filesystem handle writes** against the async decoders, preventing a
+  `q3config` write from colliding with a pak read during map loads.
 - **Repaired Linux build**: submodules, shader generation, strict-compiler fixes, and
   Vulkan/RTX resource lifetime fixes.
 
@@ -175,11 +177,13 @@ The RTX renderer needs those textures. They are CC0; the original set is publish
 [Blue Noise Textures](https://momentsingraphics.de/BlueNoise.html). Place your own `q3key`
 in `baseq3/` as well; it is the same file used by the original game.
 
-### Optional HD texture packs
+### Optional HD texture and model packs
 
 These are loaded as additional `.pk3` files in `baseq3`. They are **not** bundled here
 because their licenses are separate from the GPL source code. Download them from their
-authors and follow the terms on those pages:
+authors and follow the terms on those pages.
+
+#### HD texture packs
 
 | Pack | Link | Notes |
 |---|---|---|
@@ -188,11 +192,36 @@ authors and follow the terms on those pages:
 | XCSV HiRes | [ioquake3 replacement content](https://ioquake3.org/extras/replacement_content/) | Classic hand-made pack; CC BY-NC-ND 3.0 |
 | Quake 3 Neural Upscale | [ModDB](https://www.moddb.com/mods/quake-3-neural-upscale/addons) | Very high-resolution AI upscale; split across several `.pk3` files |
 
+#### HD player and weapon models
+
+| Pack | Link | Notes |
+|---|---|---|
+| 4K ALL MODELS | [ModDB](https://www.moddb.com/games/quake-iii-arena/addons/4k-high-detailed-player-models) | 18 MD3 models and 234 4K TGA textures (2.45 GB unpacked); ModDB lists it as Public Domain |
+| Quake Arena Arcade Assets | [ModDB](https://www.moddb.com/mods/quake-arena-arcade-assets) | Xbox 360 weapon and armor models/textures; proprietary id/Pi Studios content, personal use only |
+| Quake 3 Model Pack v2 | [ModDB](https://www.moddb.com/addons/quake-3-model-pack) | MIT-licensed collection of custom player/bot models; optional |
+
 Download the `.pk3` files and place them in `baseq3`. Do not commit them to this repository.
 Their availability and licensing are controlled by their authors, not by this project.
 
-The rewritten zone allocator grows on demand, so large packs that exceed the original
-16 MB zone can load.
+The 4K model textures are large enough to exceed the default hunk during skin upload. If
+you use that pack, raise both limits in `q3config.cfg`:
+
+```text
+seta com_hunkMegs "256"
+seta com_zoneMegs "64"
+```
+
+For the Arcade weapon pack, name its shader override so it loads **after** the main pak:
+
+```text
+baseq3/
+├── pak9m_4K_ALL_MODELS.pk3
+├── pak9m_QuakeArenaArcade.pk3
+└── pak9n_QuakeArenaArcade_shader.pk3
+```
+
+The rewritten zone allocator grows on demand, so large texture packs that exceed the
+original 16 MB zone can load; the hunk setting above covers the 4K model skins.
 
 ## Running
 
@@ -329,6 +358,11 @@ classic UI.
 The zone allocator now grows in segments; no extra cvar is required. Make sure the pack's
 `.pk3` files are in the `baseq3` directory selected by `fs_basePath`.
 
+**4K player models fail with `Hunk_AllocateTempMemory`**
+
+The 4K model skins need a larger temporary hunk. Set `com_hunkMegs 256` and
+`com_zoneMegs 64` in `q3config.cfg`, or remove the 4K pak if memory is tight.
+
 ## Asset and source licensing
 
 The engine source is derived from id Software's GPL Quake III Arena release. See
@@ -337,7 +371,7 @@ libraries. The FSR2 backend and its generated
 Vulkan shader blobs are derived from AMD FidelityFX FSR2 2.2.1 under the MIT license; see
 `code/renderer/fsr2/LICENSE.txt`.
 
-Quake III Arena game data, `q3key`, and third-party HD texture packs are **not** part of
+Quake III Arena game data, `q3key`, and third-party HD texture/model packs are **not** part of
 this repository. They remain the property of their respective owners and must be obtained
 separately under their own terms. Screenshots in this README were captured from the
 current build using the base game assets.
