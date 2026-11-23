@@ -1,0 +1,32 @@
+language: "en-US"
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: true
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!external/**"
+    - "!bin/**"
+    - "!_release/**"
+    - "!dist/**"
+    - "!blue_noise_textures/**"
+    - "!code/renderer/fsr2/**"
+    - "!shader/header/**"
+    - "!vm/win32/bin/**"
+    - "!images/**"
+  path_instructions:
+    - path: "code/renderer/**"
+      instructions: >
+        Focus on Vulkan object lifetime, image layout and barrier correctness,
+        descriptor validity, and SMP frontend/render-thread races. Ignore
+        style-only changes.
+    - path: "packaging/**"
+      instructions: >
+        Check installed paths, launcher quoting, dependency lists, and that
+        game data is not bundled.
